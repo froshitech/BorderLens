@@ -25,5 +25,9 @@ module.exports = [
         presets: ['@babel/preset-react']
       }
     }
+  },
+  {
+    test: /\.(png|jpe?g|gif|svg)$/i,
+    type: 'asset/resource',
   }
 ];

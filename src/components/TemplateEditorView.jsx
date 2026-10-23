@@ -6,6 +6,7 @@ export default function TemplateEditorView({
   template, templates = [], builtinTemplates = [], hiddenBuiltins = [], customTemplates = [],
   onToggleBuiltin, onToggleCustom, onAddTemplate, onSaveTemplate, onSelectTemplate,
   onUpdateSlot, onUpdateFitMode, onAutoDetectSlots, onAddSlot, onDeleteSlot, onBack,
+  onDeleteTemplate,
 }) {
   const canvasRef = useRef(null);
   const backgroundRef = useRef(null);
@@ -15,6 +16,7 @@ export default function TemplateEditorView({
   const [interaction, setInteraction] = useState(null);
   const [detectingSlots, setDetectingSlots] = useState(false);
   const [detectError, setDetectError] = useState(null);
+  const [renderedSize, setRenderedSize] = useState(null);
   const width = imageDimensions?.width || template?.width || (template?.orientation === 'landscape' ? 1900 : 900);
   const height = imageDimensions?.height || template?.height || (template?.orientation === 'landscape' ? 900 : 1900);
   const slots = template?.slots || [];
@@ -22,6 +24,7 @@ export default function TemplateEditorView({
   useEffect(() => {
     let cancelled = false;
     setImageDimensions(null);
+    setRenderedSize(null);
     if (!template?.overlayPngPath) return undefined;
     Promise.all([
       window.electronAPI.getTemplateThumbnail(template.overlayPngPath),
@@ -35,6 +38,21 @@ export default function TemplateEditorView({
     });
     return () => { cancelled = true; };
   }, [template]);
+
+  useEffect(() => {
+    const image = backgroundRef.current;
+    if (!image) return undefined;
+    const measure = () => {
+      const rect = image.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setRenderedSize({ width: Math.round(rect.width), height: Math.round(rect.height) });
+      }
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(image);
+    return () => observer.disconnect();
+  }, [templateSrc, imageDimensions]);
 
   useEffect(() => {
     if (!interaction) return undefined;
@@ -53,6 +71,7 @@ export default function TemplateEditorView({
       }
       setInteraction(current => current ? { ...current, draft: { x, y, w, h } } : current);
     };
+
     const stop = () => {
       const rect = canvasRef.current?.getBoundingClientRect();
       const draft = interaction.draft;
@@ -80,6 +99,11 @@ export default function TemplateEditorView({
   }, [interaction, template, width, height, imageDimensions, onUpdateSlot]);
 
   if (!template) return <div className="template-editor-empty">Select a template to edit.</div>;
+
+  const deleteTemplate = () => {
+    if (!template.isCustom || !onDeleteTemplate) return;
+    if (window.confirm(`Delete template "${template.name}"?`)) onDeleteTemplate(template.id);
+  };
 
   const startInteraction = (event, index, mode) => {
     event.preventDefault();
@@ -152,14 +176,13 @@ export default function TemplateEditorView({
           </div>
           <button className="settings-add-btn" onClick={() => addTemplate('portrait')}>＋ Add Portrait Template</button>
           <button className="settings-add-btn" onClick={() => addTemplate('landscape')}>＋ Add Landscape Template</button>
-          <button className="settings-add-btn" onClick={autoDetectSlots} disabled={detectingSlots}>
-            {detectingSlots ? 'Detecting Slots…' : 'Auto-Detect Slots'}
-          </button>
-          {detectError && <p className="settings-hint settings-hint--error">{detectError}</p>}
+          {template.isCustom && <button className="template-delete-btn" onClick={deleteTemplate}>🗑 Delete Template</button>}
         </aside>
         <main className="template-editor-canvas-wrap">
-          <div ref={canvasRef} className="template-editor-canvas" style={{ aspectRatio: `${width} / ${height}` }} onPointerDown={() => setSelectedIndex(null)}>
+          <div ref={canvasRef} className="template-editor-canvas" style={{ aspectRatio: `${width} / ${height}`, ...(renderedSize || {}) }} onPointerDown={() => setSelectedIndex(null)}>
             {templateSrc && <img ref={backgroundRef} src={templateSrc} alt="" className="template-editor-background" onLoad={event => {
+              const rect = event.currentTarget.getBoundingClientRect();
+              setRenderedSize({ width: Math.round(rect.width), height: Math.round(rect.height) });
               if (!imageDimensions && event.currentTarget.naturalWidth && event.currentTarget.naturalHeight) {
                 setImageDimensions({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight });
               }
@@ -187,6 +210,10 @@ export default function TemplateEditorView({
         <aside className="template-editor-layers">
           <h3>Layers</h3>
           <button className="settings-add-btn" onClick={onAddSlot}>＋ Add Photo Slot</button>
+          <button className="settings-add-btn" onClick={autoDetectSlots} disabled={detectingSlots}>
+            {detectingSlots ? 'Detecting Slots…' : 'Auto-Detect Slots'}
+          </button>
+          {detectError && <p className="settings-hint settings-hint--error">{detectError}</p>}
           <label className="template-editor-fit-label">Fit mode<select value={template.fitMode || 'cover'} onChange={event => onUpdateFitMode(template.id, event.target.value)}>
             <option value="cover">Cover</option><option value="contain">Contain</option><option value="fill">Fill</option>
           </select></label>

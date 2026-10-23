@@ -559,6 +559,10 @@ export default function useBooth() {
   const handleRemoveCustomTemplate = (id) => {
     setCustomTemplates(prev => prev.filter(x => x.id !== id));
     if (selectedTemplate?.id === id) { setSelectedTemplate(null); lsSet(LS_LAST_TEMPLATE, null); }
+    if (templateEditorId === id) {
+      const fallback = allVisibleTpls.find(template => template.id !== id);
+      setTemplateEditorId(fallback?.id || null);
+    }
   };
 
   const toggleBuiltin = (id) => {
@@ -606,7 +610,7 @@ export default function useBooth() {
     ...visibleBuiltins.map(template => ({ ...template, ...(builtinSlotOverrides[template.id] || {}) })),
     ...customTemplates.filter(template => template.enabled !== false),
   ];
-  const hideNavbar = step === 'LIVE_VIEW' || step === 'TEMPLATE_EDITOR';
+  const hideNavbar = step === 'LIVE_VIEW' || step === 'TEMPLATE_EDITOR' || step === 'RESULT' || step === 'GALLERY';
   const openSettings = () => {
     settingsReturnStepRef.current = step === 'GALLERY' || step === 'SETTINGS'
       ? 'TEMPLATE_SELECTION'

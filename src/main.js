@@ -418,157 +418,67 @@ function applyFilter(pipeline, filterType) {
 }
 
 // ─── Detect transparent photo slots in a template PNG ────────────────────────
-// Scans the alpha channel at a reduced resolution, finds rectangular blocks of
-// fully-transparent pixels, and returns them sorted top-to-bottom as
-// [{ x, y, w, h }, ...] in the original image's coordinate space.
+// Scans the alpha channel at a reduced resolution, finds connected rectangular
+// blocks of fully-transparent pixels, and returns native image coordinates.
 async function detectPhotoSlots(templatePath, fullW, fullH, orientation = 'portrait') {
-  // Work at a small scale for speed (max 300px wide)
-  const SCALE = Math.min(1, 300 / fullW);
+  const SCALE = Math.min(1, 600 / Math.max(fullW, fullH));
   const sw = Math.round(fullW * SCALE);
   const sh = Math.round(fullH * SCALE);
-
-  // Extract raw alpha channel pixels (one byte per pixel)
   const { data } = await sharp(templatePath)
     .resize(sw, sh, { fit: 'fill' })
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
+  const visited = new Uint8Array(sw * sh);
+  const components = [];
+  const isTransparent = (x, y) => data[(y * sw + x) * 4 + 3] === 0;
+  const neighbors = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const minWidth = Math.max(4, sw * 0.05);
+  const minHeight = Math.max(4, sh * 0.05);
 
-  // data is RGBA — alpha is every 4th byte (index 3, 7, 11 …)
-  const CHANNELS = 4;
-  const alpha = (x, y) => data[(y * sw + x) * CHANNELS + 3];
-
-  const ALPHA_THRESH = 1; // only fully transparent pixels are slot candidates
-
-  // ── Pass 1: mark transparent pixel rows ──────────────────────────────────
-  // For each row, is the majority of the row transparent?
-  // We look for column-aligned transparent bands (the photo slots are rectangular)
-  // Strategy: find contiguous vertical bands where most pixels are transparent,
-  // then within those bands find the horizontal extent.
-
-  // Build a boolean grid: true = transparent
-  const isTransparent = (x, y) => alpha(x, y) < ALPHA_THRESH;
-
-  {
-    // Landscape slots are 2D regions. Row/column projections merge adjacent
-    // grid cells, so walk the alpha mask as connected components instead.
-    const visited = new Uint8Array(sw * sh);
-    const components = [];
-    const neighbors = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-
-    for (let y = 0; y < sh; y++) {
-      for (let x = 0; x < sw; x++) {
-        const start = y * sw + x;
-        if (visited[start] || !isTransparent(x, y)) continue;
-        visited[start] = 1;
-        const queue = [start];
-        let head = 0;
-        let minX = x, maxX = x, minY = y, maxY = y;
-        let area = 0;
-
-        while (head < queue.length) {
-          const index = queue[head++];
-          const currentX = index % sw;
-          const currentY = Math.floor(index / sw);
-          area++;
-          minX = Math.min(minX, currentX); maxX = Math.max(maxX, currentX);
-          minY = Math.min(minY, currentY); maxY = Math.max(maxY, currentY);
-
-          for (const [dx, dy] of neighbors) {
-            const nextX = currentX + dx;
-            const nextY = currentY + dy;
-            if (nextX < 0 || nextX >= sw || nextY < 0 || nextY >= sh) continue;
-            const next = nextY * sw + nextX;
-            if (!visited[next] && isTransparent(nextX, nextY)) {
-              visited[next] = 1;
-              queue.push(next);
-            }
-          }
-        }
-
-        const width = maxX - minX + 1;
-        const height = maxY - minY + 1;
-        const density = area / (width * height);
-        const touchesEdge = minX === 0 || minY === 0 || maxX === sw - 1 || maxY === sh - 1;
-        const isCanvasBackground = touchesEdge && width > sw * 0.9 && height > sh * 0.9;
-        if (width >= sw * 0.05 && height >= sh * 0.05 && density >= 0.45 && !isCanvasBackground) {
-          components.push({
-            x: Math.round(minX / SCALE),
-            y: Math.round(minY / SCALE),
-            w: Math.round(width / SCALE),
-            h: Math.round(height / SCALE),
-          });
-        }
-      }
-    }
-
-    return components
-      .sort((a, b) => a.y - b.y || a.x - b.x)
-      .map(slot => ({
-        x: Math.max(0, slot.x),
-        y: Math.max(0, slot.y),
-        w: Math.min(slot.w, fullW - slot.x),
-        h: Math.min(slot.h, fullH - slot.y),
-      }));
-  }
-
-  // For each row, count transparent pixels
-  const rowTransCount = new Array(sh).fill(0);
   for (let y = 0; y < sh; y++) {
     for (let x = 0; x < sw; x++) {
-      if (isTransparent(x, y)) rowTransCount[y]++;
-    }
-  }
-
-  // A row is a "slot row" if >50% of its pixels are transparent
-  const isSlotRow = rowTransCount.map(c => c / sw > 0.5);
-
-  // Find contiguous runs of slot rows
-  const rowRuns = [];
-  let runStart = -1;
-  for (let y = 0; y <= sh; y++) {
-    if (y < sh && isSlotRow[y]) {
-      if (runStart === -1) runStart = y;
-    } else {
-      if (runStart !== -1) {
-        rowRuns.push({ y0: runStart, y1: y - 1 });
-        runStart = -1;
+      const start = y * sw + x;
+      if (visited[start] || !isTransparent(x, y)) continue;
+      visited[start] = 1;
+      const queue = [start];
+      let head = 0;
+      let minX = x, maxX = x, minY = y, maxY = y, area = 0;
+      while (head < queue.length) {
+        const index = queue[head++];
+        const currentX = index % sw;
+        const currentY = Math.floor(index / sw);
+        area++;
+        minX = Math.min(minX, currentX); maxX = Math.max(maxX, currentX);
+        minY = Math.min(minY, currentY); maxY = Math.max(maxY, currentY);
+        for (const [dx, dy] of neighbors) {
+          const nextX = currentX + dx;
+          const nextY = currentY + dy;
+          if (nextX < 0 || nextX >= sw || nextY < 0 || nextY >= sh) continue;
+          const next = nextY * sw + nextX;
+          if (!visited[next] && isTransparent(nextX, nextY)) {
+            visited[next] = 1;
+            queue.push(next);
+          }
+        }
+      }
+      const componentWidth = maxX - minX + 1;
+      const componentHeight = maxY - minY + 1;
+      const density = area / (componentWidth * componentHeight);
+      const touchesEdge = minX === 0 || minY === 0 || maxX === sw - 1 || maxY === sh - 1;
+      if (!touchesEdge && componentWidth >= minWidth && componentHeight >= minHeight && density >= 0.65) {
+        const x0 = Math.max(0, Math.round(minX / SCALE));
+        const y0 = Math.max(0, Math.round(minY / SCALE));
+        components.push({
+          x: x0,
+          y: y0,
+          w: Math.min(fullW - x0, Math.round(componentWidth / SCALE)),
+          h: Math.min(fullH - y0, Math.round(componentHeight / SCALE)),
+        });
       }
     }
   }
-
-  if (rowRuns.length === 0) return []; // no transparent regions found
-
-  // ── Pass 2: for each row-run, find the horizontal extent ─────────────────
-  const slots = rowRuns.map(run => {
-    const midY = Math.round((run.y0 + run.y1) / 2);
-    let x0 = sw, x1 = 0;
-    for (let x = 0; x < sw; x++) {
-      if (isTransparent(x, midY)) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
-    }
-    if (x1 < x0) { x0 = 0; x1 = sw - 1; } // fallback: full width
-
-    // Scale back to full-res coordinates
-    return {
-      x: Math.round(x0 / SCALE),
-      y: Math.round(run.y0 / SCALE),
-      w: Math.round((x1 - x0 + 1) / SCALE),
-      h: Math.round((run.y1 - run.y0 + 1) / SCALE),
-    };
-  });
-
-  // ── Pass 3: merge slots that are suspiciously thin (< 40px full-res) ──────
-  // These are likely border artefacts between the real slots, not actual slots.
-  const MIN_SLOT_H = Math.round(fullH * 0.05); // at least 5% of canvas height
-  const meaningful = slots.filter(s => s.h >= MIN_SLOT_H);
-
-  // Clamp to canvas bounds
-  return meaningful.map(s => ({
-    x: Math.max(0, s.x),
-    y: Math.max(0, s.y),
-    w: Math.min(s.w, fullW - s.x),
-    h: Math.min(s.h, fullH - s.y),
-  }));
+  return components.sort((a, b) => a.y - b.y || a.x - b.x);
 }
 
 async function resizePhotoToSlot(photoPath, slot, filterType, fitMode = 'cover') {
@@ -576,7 +486,7 @@ async function resizePhotoToSlot(photoPath, slot, filterType, fitMode = 'cover')
   const height = Math.max(1, Math.round(Number(slot.height ?? slot.h) || 1));
   return applyFilter(
     sharp(photoPath).resize(width, height, {
-      fit: ['cover', 'contain', 'fill'].includes(fitMode) ? fitMode : 'cover',
+      fit: 'cover',
       position: 'centre',
       ...HIGH_QUALITY_RESIZE,
     }),
@@ -1029,18 +939,18 @@ app.whenReady().then(async () => {
     }
 
     // ── Step 4: Composite template on top ─────────────────────────────────────
-    if (hasTemplate) {
-      compositeInputs.push({
-        input: await sharp(templatePath).toBuffer(),
-        top: 0, left: 0,
-      });
-    }
+    const layers = hasTemplate
+      ? [
+        ...compositeInputs,
+        { input: await sharp(templatePath).toBuffer(), top: 0, left: 0 },
+      ]
+      : compositeInputs;
 
     // ── Step 5: Write final strip ─────────────────────────────────────────────
     await sharp({
       create: { width: outWidth, height: outHeight, channels: 4, background: { r: 15, g: 23, b: 42, alpha: 1 } }
     })
-      .composite(compositeInputs)
+      .composite(layers)
       .jpeg(HIGH_QUALITY_JPEG)
       .toFile(finalFilepath);
 

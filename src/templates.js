@@ -77,7 +77,7 @@ async function ensureDefaultTemplates(outputDir = 'D:\\photobooth_output') {
 async function getTemplateThumbnail(imagePath) {
   try {
     const buf = await sharp(imagePath)
-      .resize(250, 350, { fit: 'contain', background: { r: 15, g: 23, b: 42, alpha: 1 } })
+      .resize({ width: 250, fit: 'inside', withoutEnlargement: false })
       .png()
       .toBuffer();
     return `data:image/png;base64,${buf.toString('base64')}`;

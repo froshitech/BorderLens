@@ -55,14 +55,6 @@ export default function SettingsView({
             </div>
           </section>
           <section className="settings-section">
-            <h3>Storage & Camera Tools</h3>
-            <button className="settings-add-btn" onClick={onSelectOutput}>📁 Output Folder</button>
-            <p className="settings-hint">{outputDir || 'Default output directory'}</p>
-            <button className="settings-add-btn" onClick={onOpenOutput}>Open in Explorer</button>
-            <button className="settings-add-btn" onClick={onSelectDigi}>Choose digiCamControl Directory</button>
-            <p className="settings-hint">{digiCamControlPath || 'Not detected'}</p>
-          </section>
-          <section className="settings-section">
             <h3>Camera Source & Live Preview</h3>
             <div className="camera-source-controls">
               <div className="camera-source-mode-group" role="group" aria-label="Camera source">
@@ -90,22 +82,6 @@ export default function SettingsView({
               <span className="toggle-track"><span className="toggle-thumb" /></span>
               <span><strong>Mirror live feed</strong><small>Horizontal flip for the operator preview</small></span>
             </label>
-          </section>
-          <section className="settings-section">
-            <h3>⏱️ Countdown Duration</h3>
-            <p className="settings-hint">Choose how much preparation time guests get before each shot.</p>
-            <div className="settings-pill-group" role="group" aria-label="Countdown duration">
-              {[3, 5, 10].map(duration => (
-                <button
-                  key={duration}
-                  type="button"
-                  className={`settings-pill ${countdownDuration === duration ? 'settings-pill--active' : ''}`}
-                  onClick={() => onCountdownDuration(duration)}
-                >
-                  {duration}s
-                </button>
-              ))}
-            </div>
           </section>
           <section className="settings-section">
             <h3>📸 Camera Flash</h3>
@@ -148,6 +124,23 @@ export default function SettingsView({
             <h3>Template Management</h3>
             <p className="settings-hint">Create and fine-tune photo layouts in the dedicated visual workspace.</p>
             <button className="settings-add-btn" onClick={() => onOpenVisualEditor()}>Open Visual Template Editor</button>
+          </section>
+          <section className="settings-section">
+            <h3>Storage &amp; Camera Tools</h3>
+            <button className="settings-add-btn" onClick={onSelectOutput}>📁 Output Folder</button>
+            <p className="settings-hint">{outputDir || 'Default output directory'}</p>
+            <button className="settings-add-btn" onClick={onOpenOutput}>Open in Explorer</button>
+            <button className="settings-add-btn" onClick={onSelectDigi}>Choose digiCamControl Directory</button>
+            <p className="settings-hint">{digiCamControlPath || 'Not detected'}</p>
+          </section>
+          <section className="settings-section">
+            <h3>⏱️ Countdown Duration</h3>
+            <p className="settings-hint">Choose how much preparation time guests get before each shot.</p>
+            <div className="settings-pill-group" role="group" aria-label="Countdown duration">
+              {[3, 5, 10].map(duration => (
+                <button key={duration} type="button" className={`settings-pill ${countdownDuration === duration ? 'settings-pill--active' : ''}`} onClick={() => onCountdownDuration(duration)}>{duration}s</button>
+              ))}
+            </div>
           </section>
         </div>
       </div>
