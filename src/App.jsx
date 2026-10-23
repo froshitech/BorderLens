@@ -7,7 +7,9 @@ import GalleryView from './components/GalleryView.jsx';
 import SettingsView from './components/SettingsView.jsx';
 import TemplateEditorView from './components/TemplateEditorView.jsx';
 import useBooth from './hooks/useBooth.js';
-import primaryLogo from './assets/borderlens-wordmark-light-cropped.png';
+import wordmarkLight from './assets/borderlens-wordmark-light-cropped.png';
+import wordmarkDark from './assets/borderlens-wordmark-dark-cropped.png';
+import { isDarkTheme } from './utils/helpers.js';
 
 const App = () => {
   const {
@@ -24,6 +26,11 @@ const App = () => {
     setError, setActiveFilter, closeSettings, changeTheme, selectOutputFolder, openOutputFolder, selectDigiCamControl,
     handleFilterChange, handleGenerateStrip,
   } = useBooth();
+
+  const currentTheme = themes[activeTheme] || themes['lavender-dream'];
+  const isDark = currentTheme?.mode === 'dark' || isDarkTheme(currentTheme);
+  const logoSrc = isDark ? wordmarkLight : wordmarkDark;
+
   return (
     <div className="studio">
       {showFlash && <div className="flash-overlay" />}
@@ -31,7 +38,7 @@ const App = () => {
       {isProcessing && <div className="loading-overlay"><div className="loading-content"><div className="spinner-large" /><h3>Creating your strip...</h3><p>Applying {activeFilter !== 'normal' ? activeFilter + ' filter + ' : ''}template overlay</p></div></div>}
       {printMsg && <div className="print-toast">{printMsg}</div>}
       {printerToast && <div className="print-toast">{printerToast}</div>}
-      {!hideNavbar && <nav className="navbar"><div className="navbar-left">{step === 'LIVE_VIEW' && <button className="nav-btn nav-btn--back" onClick={handleBackToTemplates}>← Choose Template</button>}<img src={primaryLogo} alt="BorderLens" className="navbar-logo-image" /></div><div className="navbar-right">{step === 'SETTINGS' ? <button className="nav-btn nav-btn--back" onClick={closeSettings}>← Back to Booth</button> : step === 'RESULT' ? null : (<><button className="nav-btn" onClick={step !== 'GALLERY' ? openGallery : () => { if (activeSession) setActiveSession(null); else setStep(selectedTemplate ? 'LIVE_VIEW' : 'TEMPLATE_SELECTION'); }}>{step === 'GALLERY' ? 'Back' : 'Gallery'}</button><button className="nav-btn nav-btn--icon" onClick={openSettings} title="Operator Settings">Settings</button></>)}</div></nav>}
+      {!hideNavbar && <nav className="navbar"><div className="navbar-left">{step === 'LIVE_VIEW' && <button className="nav-btn nav-btn--back" onClick={handleBackToTemplates}>← Choose Template</button>}<img src={logoSrc} alt="BorderLens" className="navbar-logo-image" /></div><div className="navbar-right">{step === 'SETTINGS' ? <button className="nav-btn nav-btn--back" onClick={closeSettings}>← Back to Booth</button> : step === 'RESULT' ? null : (<><button className="nav-btn" onClick={step !== 'GALLERY' ? openGallery : () => { if (activeSession) setActiveSession(null); else setStep(selectedTemplate ? 'LIVE_VIEW' : 'TEMPLATE_SELECTION'); }}>{step === 'GALLERY' ? 'Back' : 'Gallery'}</button><button className="nav-btn nav-btn--icon" onClick={openSettings} title="Operator Settings">Settings</button></>)}</div></nav>}
       {step === 'SETTINGS' ? <SettingsView
         outputDir={outputDir} digiCamControlPath={digiCamControlPath} digiCamControlAvailable={digiCamControlAvailable} printers={printers} selectedPrinter={selectedPrinter} mode={mode} devices={devices} selectedDeviceId={selectedDeviceId} mirror={mirror} shotOverride={shotOverride} countdownDuration={countdownDuration} flashEnabled={flashEnabled} builtinTemplates={builtinTemplates} hiddenBuiltins={hiddenBuiltins} customTemplates={customTemplates} isPrinting={isPrinting} canTestPrint={Boolean(resultFilename || (activeSession && activeSession.stripFilename))}
         onSelectOutput={selectOutputFolder} onOpenOutput={openOutputFolder} onSelectDigi={selectDigiCamControl}

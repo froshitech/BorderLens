@@ -69,8 +69,25 @@ export function formatDate(iso) {
     + ' · ' + date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
+export function isDarkTheme(theme) {
+  if (!theme) return false;
+  if (theme.mode === 'dark') return true;
+  if (theme.mode === 'light') return false;
+  const bg = theme.colors?.['bg-surface'] || theme.colors?.['bg-main'];
+  if (bg && typeof bg === 'string' && bg.startsWith('#')) {
+    const hex = bg.slice(1);
+    const r = parseInt(hex.length === 3 ? hex[0] + hex[0] : hex.slice(0, 2), 16);
+    const g = parseInt(hex.length === 3 ? hex[1] + hex[1] : hex.slice(2, 4), 16);
+    const b = parseInt(hex.length === 3 ? hex[2] + hex[2] : hex.slice(4, 6), 16);
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    return lum < 128;
+  }
+  return false;
+}
+
 export function applyTheme(theme, customAccent) {
   if (!theme || typeof document === 'undefined') return;
+  document.documentElement.setAttribute('data-theme-mode', isDarkTheme(theme) ? 'dark' : 'light');
   Object.entries(theme.colors).forEach(([key, value]) => {
     document.documentElement.style.setProperty(`--${key}`, value);
   });

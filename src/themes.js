@@ -2,6 +2,7 @@ const THEMES = {
   'k-studio': {
     name: 'K-Studio Cream',
     description: 'Warm cream with studio coral accents',
+    mode: 'light',
     colors: {
       'bg-main': '#FAF9F6',
       'bg-surface': '#FFFFFF',
@@ -24,6 +25,7 @@ const THEMES = {
   'lavender-dream': {
     name: 'Lavender Dream',
     description: 'Soft periwinkle over a light studio gray',
+    mode: 'light',
     colors: {
       'bg-main': '#F6F7FB',
       'bg-surface': '#FFFFFF',
@@ -46,6 +48,7 @@ const THEMES = {
   'midnight-neon': {
     name: 'Midnight Neon',
     description: 'Dark mode with cyan and magenta energy',
+    mode: 'dark',
     colors: {
       'bg-main': '#111318',
       'bg-surface': '#191C24',
@@ -69,6 +72,7 @@ const THEMES = {
   'minimal-mono': {
     name: 'Minimal Mono',
     description: 'Clean monochrome with charcoal contrast',
+    mode: 'light',
     colors: {
       'bg-main': '#FFFFFF',
       'bg-surface': '#FFFFFF',

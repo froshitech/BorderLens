@@ -313,7 +313,7 @@ function getCloudinaryClient() {
 async function cleanupExpiredCloudSessions() {
   try {
     const client = getCloudinaryClient();
-    const cutoffDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const cutoffDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const result = await client.search
       .expression(`tags=photobooth_session AND created_at<${cutoffDate}`)
       .max_results(100)
