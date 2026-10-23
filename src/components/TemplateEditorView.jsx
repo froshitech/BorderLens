@@ -98,10 +98,8 @@ export default function TemplateEditorView({
     };
   }, [interaction, template, width, height, imageDimensions, onUpdateSlot]);
 
-  if (!template) return <div className="template-editor-empty">Select a template to edit.</div>;
-
   const deleteTemplate = () => {
-    if (!template.isCustom || !onDeleteTemplate) return;
+    if (!template?.isCustom || !onDeleteTemplate) return;
     if (window.confirm(`Delete template "${template.name}"?`)) onDeleteTemplate(template.id);
   };
 
@@ -157,7 +155,7 @@ export default function TemplateEditorView({
   return (
     <div className="template-editor-page">
       <header className="template-editor-header">
-        <div><button className="back-btn" onClick={onBack}>← Back to Settings</button><h1>Visual Template Editor</h1><p>{template.name} · {width}×{height}px</p></div>
+        <div><button className="back-btn" onClick={onBack}>← Back to Settings</button><h1>Visual Template Editor</h1><p>{template ? `${template.name} · ${width}×${height}px` : 'No Template Selected'}</p></div>
       </header>
       <div className="template-editor-layout">
         <aside className="template-editor-toolbar">
@@ -165,7 +163,7 @@ export default function TemplateEditorView({
           <p>Choose a template, then drag slots to position them. Drag the orange corner to resize.</p>
           <div className="template-editor-library">
             {templates.map(item => (
-              <div key={item.id} className={`template-editor-library-row ${item.id === template.id ? 'template-editor-library-row--active' : ''}`}>
+              <div key={item.id} className={`template-editor-library-row ${item.id === template?.id ? 'template-editor-library-row--active' : ''}`}>
                 <button onClick={() => onSelectTemplate(item.id)}>{item.name}</button>
                 <label title="Show template on guest selection">
                   <input type="checkbox" checked={item.isCustom ? item.enabled !== false : !hiddenBuiltins.includes(item.id)} onChange={() => item.isCustom ? onToggleCustom(item.id) : onToggleBuiltin(item.id)} />
@@ -176,48 +174,52 @@ export default function TemplateEditorView({
           </div>
           <button className="settings-add-btn" onClick={() => addTemplate('portrait')}>＋ Add Portrait Template</button>
           <button className="settings-add-btn" onClick={() => addTemplate('landscape')}>＋ Add Landscape Template</button>
-          {template.isCustom && <button className="template-delete-btn" onClick={deleteTemplate}>🗑 Delete Template</button>}
+          {template?.isCustom && <button className="template-delete-btn" onClick={deleteTemplate}>🗑 Delete Template</button>}
         </aside>
         <main className="template-editor-canvas-wrap">
-          <div ref={canvasRef} className="template-editor-canvas" style={{ aspectRatio: `${width} / ${height}`, ...(renderedSize || {}) }} onPointerDown={() => setSelectedIndex(null)}>
-            {templateSrc && <img ref={backgroundRef} src={templateSrc} alt="" className="template-editor-background" onLoad={event => {
-              const rect = event.currentTarget.getBoundingClientRect();
-              setRenderedSize({ width: Math.round(rect.width), height: Math.round(rect.height) });
-              if (!imageDimensions && event.currentTarget.naturalWidth && event.currentTarget.naturalHeight) {
-                setImageDimensions({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight });
-              }
-            }} />}
-            {slots.map((slot, index) => {
-              const slotWidth = slot.w ?? slot.width;
-              const slotHeight = slot.h ?? slot.height;
-              const rect = canvasRef.current?.getBoundingClientRect();
-              const draft = interaction?.index === index ? interaction.draft : null;
-              const displaySlot = draft && rect
-                ? {
-                  x: draft.x * width / rect.width,
-                  y: draft.y * height / rect.height,
-                  w: draft.w * width / rect.width,
-                  h: draft.h * height / rect.height,
+          {template ? (
+            <div ref={canvasRef} className="template-editor-canvas" style={{ aspectRatio: `${width} / ${height}`, ...(renderedSize || {}) }} onPointerDown={() => setSelectedIndex(null)}>
+              {templateSrc && <img ref={backgroundRef} src={templateSrc} alt="" className="template-editor-background" onLoad={event => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                setRenderedSize({ width: Math.round(rect.width), height: Math.round(rect.height) });
+                if (!imageDimensions && event.currentTarget.naturalWidth && event.currentTarget.naturalHeight) {
+                  setImageDimensions({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight });
                 }
-                : { x: slot.x, y: slot.y, w: slotWidth, h: slotHeight };
-              return <div key={index} className={`template-editor-slot ${selectedIndex === index ? 'template-editor-slot--active' : ''}`} style={{ left: `${displaySlot.x / width * 100}%`, top: `${displaySlot.y / height * 100}%`, width: `${displaySlot.w / width * 100}%`, height: `${displaySlot.h / height * 100}%` }} onPointerDown={event => startInteraction(event, index, 'move')}>
-                <span>Photo {index + 1}</span>
-                {selectedIndex === index && <button className="template-editor-handle" onPointerDown={event => startInteraction(event, index, 'resize')} aria-label="Resize photo slot">↘</button>}
-              </div>;
-            })}
-          </div>
+              }} />}
+              {slots.map((slot, index) => {
+                const slotWidth = slot.w ?? slot.width;
+                const slotHeight = slot.h ?? slot.height;
+                const rect = canvasRef.current?.getBoundingClientRect();
+                const draft = interaction?.index === index ? interaction.draft : null;
+                const displaySlot = draft && rect
+                  ? {
+                    x: draft.x * width / rect.width,
+                    y: draft.y * height / rect.height,
+                    w: draft.w * width / rect.width,
+                    h: draft.h * height / rect.height,
+                  }
+                  : { x: slot.x, y: slot.y, w: slotWidth, h: slotHeight };
+                return <div key={index} className={`template-editor-slot ${selectedIndex === index ? 'template-editor-slot--active' : ''}`} style={{ left: `${displaySlot.x / width * 100}%`, top: `${displaySlot.y / height * 100}%`, width: `${displaySlot.w / width * 100}%`, height: `${displaySlot.h / height * 100}%` }} onPointerDown={event => startInteraction(event, index, 'move')}>
+                  <span>Photo {index + 1}</span>
+                  {selectedIndex === index && <button className="template-editor-handle" onPointerDown={event => startInteraction(event, index, 'resize')} aria-label="Resize photo slot">↘</button>}
+                </div>;
+              })}
+            </div>
+          ) : (
+            <div className="template-editor-empty">Select a template from Tools &amp; Library or add a new one.</div>
+          )}
         </main>
         <aside className="template-editor-layers">
           <h3>Layers</h3>
-          <button className="settings-add-btn" onClick={onAddSlot}>＋ Add Photo Slot</button>
-          <button className="settings-add-btn" onClick={autoDetectSlots} disabled={detectingSlots}>
+          <button className="settings-add-btn" onClick={onAddSlot} disabled={!template}>＋ Add Photo Slot</button>
+          <button className="settings-add-btn" onClick={autoDetectSlots} disabled={!template || detectingSlots}>
             {detectingSlots ? 'Detecting Slots…' : 'Auto-Detect Slots'}
           </button>
           {detectError && <p className="settings-hint settings-hint--error">{detectError}</p>}
-          <label className="template-editor-fit-label">Fit mode<select value={template.fitMode || 'cover'} onChange={event => onUpdateFitMode(template.id, event.target.value)}>
+          <label className="template-editor-fit-label">Fit mode<select value={template?.fitMode || 'cover'} onChange={event => template && onUpdateFitMode(template.id, event.target.value)} disabled={!template}>
             <option value="cover">Cover</option><option value="contain">Contain</option><option value="fill">Fill</option>
           </select></label>
-          <button className="template-editor-layer template-editor-layer--background">Background</button>
+          <button className="template-editor-layer template-editor-layer--background" disabled={!template}>Background</button>
           {slots.map((slot, index) => <div key={index} className={`template-editor-layer ${selectedIndex === index ? 'template-editor-layer--active' : ''}`}><button onClick={() => setSelectedIndex(index)}>Photo {index + 1}</button><button className="template-editor-delete" onClick={() => onDeleteSlot(index)}>Delete</button></div>)}
         </aside>
       </div>

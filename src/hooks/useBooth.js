@@ -544,8 +544,13 @@ export default function useBooth() {
     return slots;
   };
 
+  const allTemplates = [
+    ...builtinTemplates.map(template => ({ ...template, ...(builtinSlotOverrides[template.id] || {}) })),
+    ...customTemplates,
+  ];
+
   const openTemplateEditor = id => {
-    setTemplateEditorId(id || allVisibleTpls[0]?.id || null);
+    setTemplateEditorId(id || allTemplates[0]?.id || null);
     setStep('TEMPLATE_EDITOR');
   };
   const closeTemplateEditor = () => { setTemplateEditorId(null); setStep('SETTINGS'); };
@@ -560,19 +565,34 @@ export default function useBooth() {
     setCustomTemplates(prev => prev.filter(x => x.id !== id));
     if (selectedTemplate?.id === id) { setSelectedTemplate(null); lsSet(LS_LAST_TEMPLATE, null); }
     if (templateEditorId === id) {
-      const fallback = allVisibleTpls.find(template => template.id !== id);
-      setTemplateEditorId(fallback?.id || null);
+      const remaining = allTemplates.filter(template => template.id !== id);
+      setTemplateEditorId(remaining[0]?.id || null);
     }
   };
 
   const toggleBuiltin = (id) => {
-    setHiddenBuiltins(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    setHiddenBuiltins(prev => {
+      const willHide = !prev.includes(id);
+      if (willHide && selectedTemplate?.id === id) {
+        setSelectedTemplate(null);
+        lsSet(LS_LAST_TEMPLATE, null);
+      }
+      return willHide ? [...prev, id] : prev.filter(x => x !== id);
+    });
   };
 
   const toggleCustomTemplate = (id) => {
-    setCustomTemplates(prev => prev.map(template =>
-      template.id === id ? { ...template, enabled: template.enabled === false } : template
-    ));
+    setCustomTemplates(prev => {
+      const target = prev.find(template => template.id === id);
+      const willDisable = target ? target.enabled !== false : false;
+      if (willDisable && selectedTemplate?.id === id) {
+        setSelectedTemplate(null);
+        lsSet(LS_LAST_TEMPLATE, null);
+      }
+      return prev.map(template =>
+        template.id === id ? { ...template, enabled: template.enabled === false } : template
+      );
+    });
   };
 
   // Gallery
@@ -683,8 +703,8 @@ export default function useBooth() {
     outputDir, digiCamControlPath, digiCamControlAvailable, printers, selectedPrinter, mode, devices, selectedDeviceId, mirror, shotOverride, countdownDuration, flashEnabled,
     builtinTemplates, hiddenBuiltins, customTemplates, activeTheme, customAccent, setActiveTheme, setCustomAccent,
     saveCustomTemplate, handlePickCustomTemplate, handleRemoveCustomTemplate, toggleBuiltin, toggleCustomTemplate, updateCustomTemplateLayout, updateCustomTemplateSlots, updateCustomTemplateFitMode, addCustomTemplateSlot, deleteCustomTemplateSlot, detectCustomTemplateSlots, openTemplateEditor, closeTemplateEditor,
-    templateEditorId, editorTemplate: allVisibleTpls.find(template => template.id === templateEditorId) || null,
-    handleTemplateSelect, allVisibleTpls, videoRef, isStreamReady, isCapturing, isCounting, countdown, shotCount, capturedCount, currentShotIdx,
+    templateEditorId, editorTemplate: allTemplates.find(template => template.id === templateEditorId) || allTemplates[0] || null,
+    allTemplates, handleTemplateSelect, allVisibleTpls, videoRef, isStreamReady, isCapturing, isCounting, countdown, shotCount, capturedCount, currentShotIdx,
     captureDisabled, handleBackToTemplates, handleTakePhoto, switchDevice, error, retakingIdx, isRetaking, autoProceedSec, handleRetakeSingleShot,
     templateThumbSrc, templateInfo, clearAutoProceed, startAutoProceed, generateStrip, sessionTs, handlePrinterSave, handlePrinterTest,
     setOutputDir, setDigiCamControlPath, setDigiCamControlAvailable, setSelectedPrinter, setMode, setSelectedDeviceId, setMirror, setShotOverride, setCountdownDuration, setFlashEnabled,
