@@ -50,7 +50,7 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
             <span className="gallery-detail-date">{formatDate(activeSession.date)}</span>
           </div>
           <div className="three-col-layout three-col-layout--gallery">
-            <RawShots frames={activeSession.rawShots} activeCss="none" onLightbox={onLightbox} />
+            <RawShots frames={activeSession.rawShots} activeCss="none" onLightbox={onLightbox} loopUrl={activeSession.loopUrl} />
             <div className="three-col-center">
               <img src={activeSession.stripUrl} alt="Final strip" className="final-strip-img" onClick={() => onLightbox(activeSession.stripUrl, 'Final Strip')} />
             </div>
@@ -61,7 +61,6 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
                   <QRCodeSVG value={cloudShareUrl || activeSession.shareUrl} size={150} bgColor="#ffffff" fgColor="#1e2022" level="H" />
                 </button>
                 <p className="qr-status">{cloudLoading ? '☁️ Generating Online QR…' : cloudError ? `📶 Local Wi-Fi QR (Offline Fallback): ${cloudError}` : cloudQrMode === 'cloud' ? '🌍 Online QR (Works on Mobile Data • 7-Day Link)' : '📶 Local Wi-Fi QR'}</p>
-                {activeSession.loopUrl && <img className="boomerang-preview" src={activeSession.loopUrl} alt="Boomerang preview" />}
                 <button className={`action-btn action-btn--outline ${isPrinting ? 'action-btn--loading' : ''}`} onClick={() => onPrint(activeSession.stripFilename)} disabled={isPrinting}>
                   {isPrinting ? '🖨 Printing…' : '🖨 Print Strip'}
                 </button>

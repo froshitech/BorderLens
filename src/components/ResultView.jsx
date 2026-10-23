@@ -61,16 +61,25 @@ export default function ResultView({ resultPhotoUrl, resultShareUrl, resultLoopU
 export function RawShots({ frames, activeCss, onLightbox, loopUrl }) {
   return (
     <div className="three-col-left">
-      <p className="col-label">Raw Shots</p>
-      <div className="raw-shots-grid">
-        {frames.map((frame, i) => (
-          <div key={frame.filename || i} className="raw-shot-card" onClick={() => onLightbox(frame.url, `Shot ${i + 1}`)}>
-            <img src={frame.url} alt={`Shot ${i + 1}`} className="raw-shot-img" style={{ filter: activeCss }} />
-            <span className="raw-shot-num">Shot {i + 1}</span>
-          </div>
-        ))}
+      <div className="raw-shots-section">
+        <p className="col-label">Raw Shots</p>
+        <div className="raw-shots-grid">
+          {frames.map((frame, i) => (
+            <div key={frame.filename || i} className="raw-shot-card" onClick={() => onLightbox(frame.url, `Shot ${i + 1}`)}>
+              <img src={frame.url} alt={`Shot ${i + 1}`} className="raw-shot-img" style={{ filter: activeCss }} />
+              <span className="raw-shot-num">Shot {i + 1}</span>
+            </div>
+          ))}
+        </div>
       </div>
-      {loopUrl && <img className="boomerang-preview raw-shots-boomerang" src={loopUrl} alt="Boomerang preview" />}
+      {loopUrl && (
+        <div className="gif-section">
+          <p className="col-label">Animated GIF</p>
+          <div className="gif-container" onClick={() => onLightbox && onLightbox(loopUrl, 'Animated GIF')}>
+            <img className="boomerang-preview raw-shots-boomerang" src={loopUrl} alt="Boomerang preview" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
