@@ -429,9 +429,15 @@ async function detectPhotoSlots(templatePath, fullW, fullH, orientation = 'portr
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
+
+  const alphaAt = (x, y) => data[(y * sw + x) * 4 + 3];
+ 
+  const isTransparent = (x, y) => alphaAt(x, y) < 128;
+ 
+  const isOpaque = (x, y) => alphaAt(x, y) > 250;
+
   const visited = new Uint8Array(sw * sh);
   const components = [];
-  const isTransparent = (x, y) => data[(y * sw + x) * 4 + 3] === 0;
   const neighbors = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   const minWidth = Math.max(4, sw * 0.05);
   const minHeight = Math.max(4, sh * 0.05);
@@ -462,19 +468,34 @@ async function detectPhotoSlots(templatePath, fullW, fullH, orientation = 'portr
           }
         }
       }
+
+      
+      const touchesEdge = minX === 0 || minY === 0 || maxX === sw - 1 || maxY === sh - 1;
+
+      
+      const rowHasGap = ry => { for (let xi = minX; xi <= maxX; xi++) if (!isOpaque(xi, ry)) return true; return false; };
+      const colHasGap = cx => { for (let yi = minY; yi <= maxY; yi++) if (!isOpaque(cx, yi)) return true; return false; };
+      let changed = true;
+      while (changed) {
+        changed = false;
+        if (minX > 0 && colHasGap(minX - 1)) { minX--; changed = true; }
+        if (maxX < sw - 1 && colHasGap(maxX + 1)) { maxX++; changed = true; }
+        if (minY > 0 && rowHasGap(minY - 1)) { minY--; changed = true; }
+        if (maxY < sh - 1 && rowHasGap(maxY + 1)) { maxY++; changed = true; }
+      }
+
       const componentWidth = maxX - minX + 1;
       const componentHeight = maxY - minY + 1;
+     
       const density = area / (componentWidth * componentHeight);
-      const touchesEdge = minX === 0 || minY === 0 || maxX === sw - 1 || maxY === sh - 1;
-      if (!touchesEdge && componentWidth >= minWidth && componentHeight >= minHeight && density >= 0.65) {
+      if (!touchesEdge && componentWidth >= minWidth && componentHeight >= minHeight && density >= 0.5) {
+       
+
         const x0 = Math.max(0, Math.round(minX / SCALE));
         const y0 = Math.max(0, Math.round(minY / SCALE));
-        components.push({
-          x: x0,
-          y: y0,
-          w: Math.min(fullW - x0, Math.round(componentWidth / SCALE)),
-          h: Math.min(fullH - y0, Math.round(componentHeight / SCALE)),
-        });
+        const x1 = Math.min(fullW, Math.round((maxX + 1) / SCALE));
+        const y1 = Math.min(fullH, Math.round((maxY + 1) / SCALE));
+        components.push({ x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) });
       }
     }
   }
