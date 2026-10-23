@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BorderLens - Your Memories</title>
+  <style>
+    :root { color-scheme: light; --ink: #171827; --muted: #687082; --card: #fff; --accent: #635bff; --soft: #f1f2fa; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: linear-gradient(145deg, #f7f7ff, #eef4ff); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { width: min(100% - 2rem, 720px); margin: 0 auto; padding: 2rem 0 3rem; }
+    header { text-align: center; padding: 1rem 0 2rem; }
+    h1 { margin: 0; font-size: clamp(1.6rem, 7vw, 2.35rem); letter-spacing: -.04em; }
+    header p, footer { color: var(--muted); }
+    header p { margin: .55rem 0 0; }
+    section { margin-top: 1.5rem; }
+    h2 { font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 .75rem; }
+    .card { background: var(--card); border: 1px solid #e5e6f0; border-radius: 20px; padding: .8rem; box-shadow: 0 14px 35px rgba(34, 38, 75, .1); }
+    .asset { width: 100%; display: block; border-radius: 14px; max-height: 72vh; object-fit: contain; background: var(--soft); }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+    .grid .card { padding: .55rem; }
+    .grid .asset { aspect-ratio: 1 / 1; object-fit: cover; }
+    .download { display: block; width: 100%; margin-top: .75rem; padding: .8rem 1rem; border-radius: 12px; background: var(--accent); color: #fff; font-weight: 750; text-align: center; text-decoration: none; }
+    .download:active { opacity: .8; }
+    .empty { color: var(--muted); text-align: center; padding: 1rem; }
+    footer { text-align: center; font-size: .8rem; margin-top: 2.5rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>📸 BorderLens</h1>
+      <p>Your memories, ready to save</p>
+    </header>
+    <div id="content"></div>
+    <footer>Powered by BorderLens</footer>
+  </main>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const strip = params.get('strip');
+    const gif = params.get('gif');
+    let raws = [];
+    try { raws = JSON.parse(params.get('raws') || '[]'); } catch { raws = []; }
+
+    function attachmentUrl(value) {
+      try {
+        const url = new URL(value);
+        if (url.hostname.endsWith('res.cloudinary.com') && url.pathname.includes('/upload/')) {
+          url.pathname = url.pathname.replace('/upload/', '/upload/fl_attachment/');
+        }
+        return url.toString();
+      } catch { return value; }
+    }
+
+    function imageCard(url, label, className, filename) {
+      const card = document.createElement('div');
+      card.className = className || 'card';
+      const image = document.createElement('img');
+      image.className = 'asset';
+      image.src = url;
+      image.alt = label;
+      image.loading = 'lazy';
+      const link = document.createElement('a');
+      link.className = 'download';
+      link.href = attachmentUrl(url);
+      link.textContent = '📥 Download ' + label;
+      link.download = filename || '';
+      link.rel = 'noopener';
+      card.append(image, link);
+      return card;
+    }
+
+    const content = document.getElementById('content');
+    if (strip) {
+      const section = document.createElement('section');
+      section.innerHTML = '<h2>Final Photo Strip</h2>';
+      section.appendChild(imageCard(strip, 'Photo Strip', 'card', 'photo-strip.jpg'));
+      content.appendChild(section);
+    }
+    if (raws.length) {
+      const section = document.createElement('section');
+      section.innerHTML = '<h2>Individual Shots</h2>';
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      raws.forEach((url, index) => grid.appendChild(imageCard(url, 'Photo ' + (index + 1), 'card', `photo-${index + 1}.jpg`)));
+      section.appendChild(grid);
+      content.appendChild(section);
+    }
+    if (gif) {
+      const section = document.createElement('section');
+      section.innerHTML = '<h2>Animated Boomerang</h2>';
+      section.appendChild(imageCard(gif, 'Boomerang', 'card', 'boomerang.gif'));
+      content.appendChild(section);
+    }
+    if (!content.children.length) {
+      content.innerHTML = '<p class="empty">This photo session link is incomplete or has expired.</p>';
+    }
+  </script>
+</body>
+</html>

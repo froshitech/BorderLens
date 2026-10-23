@@ -1,0 +1,619 @@
+import { useState, useRef, useEffect, useCallback } from 'react';
+import THEMES from '../themes.js';
+import { FILTERS, STEP_LABELS, PAUSE_BETWEEN_SHOTS_MS, FLASH_DURATION_MS, AUTO_PROCEED_SEC, LS_CUSTOM_TEMPLATES, LS_LAST_TEMPLATE, LS_MODE, LS_SELECTED_DEVICE, LS_MIRROR, LS_SHOT_OVERRIDE, LS_COUNTDOWN_DURATION, LS_FLASH_ENABLED, LS_THEME, LS_CUSTOM_ACCENT, makeSessionTs, lsGet, lsSet, normalizeCustomTemplates, formatDate, applyTheme } from '../utils/helpers.js';
+
+export default function useBooth() {
+  const [step, setStep] = useState('TEMPLATE_SELECTION');
+
+  // ── Operator Settings page ───────────────────────────────────────────────────
+  const settingsReturnStepRef = useRef('TEMPLATE_SELECTION');
+  const [builtinTemplates, setBuiltinTemplates] = useState([]);
+  const [outputDir, setOutputDir] = useState('');
+  const [digiCamControlPath, setDigiCamControlPath] = useState('');
+  const [digiCamControlAvailable, setDigiCamControlAvailable] = useState(false);
+  const [mode,           setMode]           = useState(() => lsGet(LS_MODE, 'webcam'));
+  const [mirror,         setMirror]         = useState(() => lsGet(LS_MIRROR, true));
+  const [shotOverride,   setShotOverride]   = useState(() => lsGet(LS_SHOT_OVERRIDE, null));
+  const [countdownDuration, setCountdownDuration] = useState(() => {
+    const saved = lsGet(LS_COUNTDOWN_DURATION, 3);
+    return [3, 5, 10].includes(saved) ? saved : 3;
+  });
+  const [flashEnabled, setFlashEnabled] = useState(() => lsGet(LS_FLASH_ENABLED, true));
+  const [cloudQrMode, setCloudQrMode] = useState(() => lsGet('pb_cloud_qr_mode', 'local'));
+  const [cloudStatus, setCloudStatus] = useState({ configured: false, online: false });
+  const [hiddenBuiltins, setHiddenBuiltins] = useState(() => lsGet('pb_hidden_builtins', []));
+  const [activeTheme, setActiveTheme] = useState(() => lsGet(LS_THEME, 'lavender-dream'));
+  const [customAccent, setCustomAccent] = useState(() => lsGet(LS_CUSTOM_ACCENT, null));
+
+  // ── Template & filter ───────────────────────────────────────────────────────
+  const [selectedTemplate,    setSelectedTemplate]    = useState(null);
+  const [customTemplates,     setCustomTemplates]     = useState(() => normalizeCustomTemplates(lsGet(LS_CUSTOM_TEMPLATES, [])));
+  const [activeFilter,        setActiveFilter]        = useState('normal');
+  const [templateThumbSrc,    setTemplateThumbSrc]    = useState(null); // for strip preview
+  const [templateInfo,        setTemplateInfo]        = useState(null);
+
+  // ── Result ──────────────────────────────────────────────────────────────────
+  const [resultFilename, setResultFilename] = useState(null);
+  const [resultPhotoUrl, setResultPhotoUrl] = useState(null);
+  const [resultShareUrl, setResultShareUrl] = useState(null);
+  const [resultLoopUrl, setResultLoopUrl] = useState(null);
+
+  // ── Camera ──────────────────────────────────────────────────────────────────
+  const [isStreamReady,    setIsStreamReady]    = useState(false);
+  const [devices,          setDevices]          = useState([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState(() => lsGet(LS_SELECTED_DEVICE, ''));
+
+  // ── Shooting sequence ────────────────────────────────────────────────────────
+  const [shotCount,      setShotCount]      = useState(2);
+  const [countdown,      setCountdown]      = useState(null);
+  const [isCapturing,    setIsCapturing]    = useState(false);
+  const [isProcessing,   setIsProcessing]   = useState(false);
+  const [currentShotIdx, setCurrentShotIdx] = useState(0);
+  const [capturedCount,  setCapturedCount]  = useState(0);
+  const [showFlash,      setShowFlash]      = useState(false);
+  const [error,          setError]          = useState(null);
+
+  const [rawFrames,      setRawFrames]      = useState([]);
+  const [sessionTs,      setSessionTs]      = useState(null);
+  const [retakingIdx,    setRetakingIdx]    = useState(null);
+  const [autoProceedSec, setAutoProceedSec] = useState(null);
+
+  // ── Gallery ──────────────────────────────────────────────────────────────────
+  const [sessions,        setSessions]        = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [activeSession,   setActiveSession]   = useState(null);
+  const [lightboxUrl,     setLightboxUrl]     = useState(null);
+  const [lightboxLabel,   setLightboxLabel]   = useState('');
+
+  // ── Misc ─────────────────────────────────────────────────────────────────────
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printMsg,   setPrintMsg]   = useState(null);
+  const [printers, setPrinters] = useState([]);
+  const [selectedPrinter, setSelectedPrinter] = useState('');
+  const [printerToast, setPrinterToast] = useState(null);
+
+  // ── Refs ─────────────────────────────────────────────────────────────────────
+  const videoRef          = useRef(null);
+  const streamRef         = useRef(null);
+  const countdownTimerRef = useRef(null);
+  const autoProceedRef    = useRef(null);
+  const captureSequenceRef = useRef(0);
+  const retakeStartedRef = useRef(null);
+
+  // ─── Persist settings ────────────────────────────────────────────────────────
+  useEffect(() => { lsSet(LS_MODE,   mode);   }, [mode]);
+  useEffect(() => { lsSet(LS_SELECTED_DEVICE, selectedDeviceId); }, [selectedDeviceId]);
+  useEffect(() => { lsSet(LS_MIRROR, mirror); }, [mirror]);
+  useEffect(() => { lsSet(LS_SHOT_OVERRIDE, shotOverride); }, [shotOverride]);
+  useEffect(() => { lsSet(LS_COUNTDOWN_DURATION, countdownDuration); }, [countdownDuration]);
+  useEffect(() => { lsSet(LS_FLASH_ENABLED, flashEnabled); }, [flashEnabled]);
+  useEffect(() => { lsSet('pb_cloud_qr_mode', cloudQrMode); }, [cloudQrMode]);
+  useEffect(() => { lsSet(LS_CUSTOM_TEMPLATES, customTemplates); }, [customTemplates]);
+  useEffect(() => { lsSet(LS_THEME, activeTheme); }, [activeTheme]);
+  useEffect(() => { lsSet(LS_CUSTOM_ACCENT, customAccent); }, [customAccent]);
+  useEffect(() => { applyTheme(THEMES[activeTheme] || THEMES['lavender-dream'], customAccent); }, [activeTheme, customAccent]);
+  useEffect(() => { lsSet('pb_hidden_builtins', hiddenBuiltins); }, [hiddenBuiltins]);
+
+  useEffect(() => {
+    if (step !== 'SETTINGS') return;
+    Promise.all([
+      window.electronAPI.getSystemPrinters(),
+      window.electronAPI.getSavedPrinter(),
+    ]).then(([availablePrinters, savedPrinter]) => {
+      setPrinters(availablePrinters || []);
+      setSelectedPrinter(savedPrinter || availablePrinters?.find(p => p.isDefault)?.name || '');
+    }).catch(err => setError(`Could not load printers: ${err.message}`));
+    window.electronAPI.getCloudStatus()
+      .then(setCloudStatus)
+      .catch(err => setCloudStatus({ configured: false, online: false, error: err.message }));
+  }, [step]);
+
+  useEffect(() => {
+    Promise.all([
+      window.electronAPI.getBuiltinTemplates(),
+      window.electronAPI.getSettings(),
+    ]).then(([templates, settings]) => {
+      setBuiltinTemplates(templates || []);
+      setOutputDir(settings?.outputDir || '');
+      setDigiCamControlPath(settings?.digiCamControlPath || '');
+      setDigiCamControlAvailable(Boolean(settings?.digiCamControlAvailable));
+    }).catch(err => setError(`Could not load studio settings: ${err.message}`));
+  }, []);
+
+  // ─── Load template thumbnail for strip preview ────────────────────────────────
+  useEffect(() => {
+    if (!selectedTemplate?.overlayPngPath) { setTemplateThumbSrc(null); setTemplateInfo(null); return; }
+    window.electronAPI.getTemplateThumbnail(selectedTemplate.overlayPngPath)
+      .then(url => setTemplateThumbSrc(url || null))
+      .catch(() => setTemplateThumbSrc(null));
+    window.electronAPI.getTemplateInfo(selectedTemplate.overlayPngPath)
+      .then(info => setTemplateInfo(info || null))
+      .catch(() => setTemplateInfo(null));
+  }, [selectedTemplate]);
+
+  // ─── Auto-detect shot count from template slots ───────────────────────────────
+  useEffect(() => {
+    if (shotOverride !== null) { setShotCount(shotOverride); return; }
+    if (!selectedTemplate?.overlayPngPath) return;
+    window.electronAPI.getTemplateInfo(selectedTemplate.overlayPngPath)
+      .then(info => { if (info?.slots?.length > 1) setShotCount(info.slots.length); })
+      .catch(() => {});
+  }, [selectedTemplate, shotOverride]);
+
+  // ─── Webcam lifecycle ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const needsCam =
+      (step === 'LIVE_VIEW' || step === 'SETTINGS' || (step === 'REVIEW_SHOTS' && retakingIdx !== null))
+      && mode === 'webcam';
+    if (needsCam) enumerateAndStart();
+    else stopWebcam();
+    return () => stopWebcam();
+  }, [mode, step, retakingIdx]);
+
+  useEffect(() => { if (step !== 'LIVE_VIEW' && step !== 'REVIEW_SHOTS') clearCountdown(); }, [step]);
+
+  useEffect(() => {
+    if (step === 'GALLERY' || step === 'SETTINGS' || step === 'TEMPLATE_SELECTION') {
+      setRawFrames([]);
+      setActiveSession(null);
+    }
+  }, [step]);
+
+  const enumerateAndStart = async () => {
+    try {
+      const all  = await navigator.mediaDevices.enumerateDevices();
+      const vids = all.filter(d => d.kind === 'videoinput');
+      setDevices(vids);
+      const savedDevice = selectedDeviceId && vids.find(d => d.deviceId === selectedDeviceId);
+      const deviceId = savedDevice?.deviceId || vids[0]?.deviceId || '';
+      if (deviceId !== selectedDeviceId) setSelectedDeviceId(deviceId);
+      await startWebcam(deviceId);
+    } catch (err) { setError('Failed to access camera: ' + err.message); }
+  };
+
+  const startWebcam = async (deviceId) => {
+    try {
+      const constraints = { video: deviceId ? { deviceId: { exact: deviceId } } : true, audio: false };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+      if (videoRef.current) videoRef.current.srcObject = stream;
+      setIsStreamReady(true);
+    } catch (err) { setError('Failed to start webcam: ' + err.message); }
+  };
+
+  const stopWebcam = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+      setIsStreamReady(false);
+    }
+  };
+
+  const switchDevice = async (deviceId) => {
+    setSelectedDeviceId(deviceId);
+    stopWebcam();
+    await startWebcam(deviceId);
+  };
+
+  // ─── Countdown ───────────────────────────────────────────────────────────────
+  const runCountdown = useCallback((onComplete) => {
+    let current = countdownDuration;
+    setCountdown(current);
+    const tick = () => {
+      current -= 1;
+      if (current > 0) { setCountdown(current); countdownTimerRef.current = setTimeout(tick, 1000); }
+      else { setCountdown('SMILE!'); countdownTimerRef.current = setTimeout(() => { setCountdown(null); onComplete(); }, 700); }
+    };
+    countdownTimerRef.current = setTimeout(tick, 1000);
+  }, [countdownDuration]);
+
+  useEffect(() => {
+    if (step !== 'LIVE_VIEW' || retakingIdx === null) return;
+    if (mode === 'webcam' && !isStreamReady) return;
+    if (retakeStartedRef.current === retakingIdx) return;
+    retakeStartedRef.current = retakingIdx;
+    const sequence = captureSequenceRef.current;
+    runCountdown(() => {
+      if (captureSequenceRef.current === sequence) doRetake(retakingIdx, sequence);
+    });
+  }, [step, retakingIdx, mode, isStreamReady, runCountdown]);
+
+  const clearCountdown = () => {
+    if (countdownTimerRef.current) { clearTimeout(countdownTimerRef.current); countdownTimerRef.current = null; }
+    setCountdown(null);
+  };
+
+  // ─── Auto-proceed ─────────────────────────────────────────────────────────────
+  const startAutoProceed = useCallback((onZero) => {
+    setAutoProceedSec(AUTO_PROCEED_SEC);
+    let remaining = AUTO_PROCEED_SEC;
+    const tick = () => {
+      remaining -= 1;
+      if (remaining <= 0) { setAutoProceedSec(null); onZero(); }
+      else { setAutoProceedSec(remaining); autoProceedRef.current = setTimeout(tick, 1000); }
+    };
+    autoProceedRef.current = setTimeout(tick, 1000);
+  }, []);
+
+  const clearAutoProceed = () => {
+    if (autoProceedRef.current) { clearTimeout(autoProceedRef.current); autoProceedRef.current = null; }
+    setAutoProceedSec(null);
+  };
+
+  const resetAutoProceed = (frames, ts) => {
+    clearAutoProceed();
+    startAutoProceed(() => generateStrip(frames, ts));
+  };
+
+  // ─── Webcam frame helper ──────────────────────────────────────────────────────
+  const captureWebcamFrame = () => {
+    const video = videoRef.current;
+    if (!video) throw new Error('Video element not found');
+    const canvas = document.createElement('canvas');
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (mirror) { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
+    ctx.drawImage(video, 0, 0);
+    return canvas.toDataURL('image/jpeg');
+  };
+
+  // ─── Main capture flow ────────────────────────────────────────────────────────
+  const handleTakePhoto = () => {
+    if (isCapturing || countdown !== null || isProcessing) return;
+    const sequence = captureSequenceRef.current + 1;
+    captureSequenceRef.current = sequence;
+    setError(null);
+    setIsCapturing(true);
+    setCurrentShotIdx(0);
+    setCapturedCount(0);
+    setRawFrames([]);
+    setActiveFilter('normal'); // reset filter for new session
+
+    const ts          = makeSessionTs();
+    const totalShots  = shotCount;
+    const currentMode = mode;
+    setSessionTs(ts);
+
+    const collectedFrames = [];
+
+    const doCapture = async (shotIdx) => {
+      try {
+        if (captureSequenceRef.current !== sequence) return;
+        let rawPath;
+        if (currentMode === 'webcam') {
+          rawPath = await window.electronAPI.captureWebcam(captureWebcamFrame(), ts, shotIdx);
+        } else {
+          rawPath = await window.electronAPI.captureDslr(ts, shotIdx);
+        }
+        if (captureSequenceRef.current !== sequence) return;
+        const rawFilename = rawPath.split(/[\\/]/).pop();
+        const frameUrl    = `http://localhost:3001/photos/${rawFilename}`;
+        collectedFrames.push({ path: rawPath, url: frameUrl });
+        setRawFrames([...collectedFrames]);
+        if (flashEnabled) {
+          setShowFlash(true);
+          setTimeout(() => setShowFlash(false), FLASH_DURATION_MS);
+        }
+        const nextIdx = shotIdx + 1;
+        setCapturedCount(nextIdx);
+        if (nextIdx < totalShots) {
+          setCurrentShotIdx(nextIdx);
+          setTimeout(() => {
+            if (captureSequenceRef.current === sequence) {
+              runCountdown(() => doCapture(nextIdx));
+            }
+          }, PAUSE_BETWEEN_SHOTS_MS);
+        } else {
+          setIsCapturing(false);
+          setStep('REVIEW_SHOTS');
+          startAutoProceed(() => generateStrip([...collectedFrames], ts));
+        }
+      } catch (err) {
+        if (captureSequenceRef.current !== sequence) return;
+        setError(err.message || 'Capture failed.');
+        setIsCapturing(false);
+      }
+    };
+
+    runCountdown(() => doCapture(0));
+  };
+
+  // ─── Generate strip ───────────────────────────────────────────────────────────
+  const generateStrip = async (frames, ts) => {
+    clearAutoProceed();
+    setIsProcessing(true);
+    try {
+      const { filename, photoUrl, shareUrl, loopUrl } = await window.electronAPI.processStrip(
+        frames.map(f => f.path),
+        selectedTemplate?.overlayPngPath || null,
+        activeFilter,
+        selectedTemplate?.layoutMode || selectedTemplate?.orientation || null,
+        selectedTemplate?.slots || null,
+        selectedTemplate?.fitMode || 'cover'
+      );
+      setResultFilename(filename);
+      setResultPhotoUrl(photoUrl);
+      setResultShareUrl(shareUrl);
+      setResultLoopUrl(loopUrl || null);
+      setStep('RESULT');
+    } catch (err) {
+      setError(err.message || 'Failed to process strip.');
+      setStep('REVIEW_SHOTS');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // ─── Retake single shot ───────────────────────────────────────────────────────
+  const handleRetakeSingleShot = (idx) => {
+    clearAutoProceed();
+    captureSequenceRef.current += 1;
+    retakeStartedRef.current = null;
+    setRetakingIdx(idx);
+    setStep('LIVE_VIEW');
+    setError(null);
+  };
+
+  const doRetake = async (idx, sequence) => {
+    try {
+      let rawPath;
+      if (mode === 'webcam') {
+        rawPath = await window.electronAPI.captureSingleShot('webcam', captureWebcamFrame(), sessionTs, idx);
+      } else {
+        rawPath = await window.electronAPI.captureSingleShot('dslr', null, sessionTs, idx);
+      }
+      if (captureSequenceRef.current !== sequence) return;
+      const frameUrl = `http://localhost:3001/photos/${rawPath.split(/[\\/]/).pop()}?v=${Date.now()}`;
+      if (flashEnabled) {
+        setShowFlash(true);
+        setTimeout(() => setShowFlash(false), FLASH_DURATION_MS);
+      }
+      setRawFrames(prev => {
+        const next = [...prev];
+        next[idx] = { path: rawPath, url: frameUrl };
+        resetAutoProceed(next, sessionTs);
+        return next;
+      });
+      setRetakingIdx(null);
+      retakeStartedRef.current = null;
+      setStep('REVIEW_SHOTS');
+    } catch (err) {
+      setError(err.message || 'Retake failed.');
+      setRetakingIdx(null);
+      retakeStartedRef.current = null;
+    }
+  };
+
+  // ─── Print ────────────────────────────────────────────────────────────────────
+  const handlePrint = async (stripFilename) => {
+    if (isPrinting) return;
+    setIsPrinting(true); setPrintMsg(null);
+    try {
+      await window.electronAPI.printStrip({ stripFilename, copies: 1, printerName: selectedPrinter || null });
+      setPrintMsg('✅ Sent to printer!');
+    } catch (err) { setPrintMsg('❌ Print failed: ' + err.message); }
+    finally { setIsPrinting(false); setTimeout(() => setPrintMsg(null), 4000); }
+  };
+
+  const handlePrinterSave = async () => {
+    try {
+      await window.electronAPI.savePrinterSelection(selectedPrinter || null);
+      setPrinterToast('Printer preference saved');
+      setTimeout(() => setPrinterToast(null), 2500);
+    } catch (err) {
+      setError(`Could not save printer: ${err.message}`);
+    }
+  };
+
+  const handlePrinterTest = async () => {
+    const stripFilename = resultFilename || activeSession?.stripFilename;
+    if (!stripFilename) {
+      setError('Complete or open a session before testing the printer.');
+      return;
+    }
+    await handlePrint(stripFilename);
+  };
+
+  // ─── Navigation ───────────────────────────────────────────────────────────────
+  const handleTemplateSelect = (t) => {
+    setSelectedTemplate(t);
+    lsSet(LS_LAST_TEMPLATE, t.id);
+    setError(null);
+  };
+
+  const handleNewSession = () => {
+    clearAutoProceed();
+    setResultFilename(null); setResultPhotoUrl(null); setResultShareUrl(null);
+    setResultLoopUrl(null);
+    setRawFrames([]); setRetakingIdx(null); setSessionTs(null);
+    setError(null); setCapturedCount(0); setCurrentShotIdx(0);
+    setActiveFilter('normal');
+    setStep('TEMPLATE_SELECTION');
+  };
+
+  const handleBackToTemplates = () => {
+    captureSequenceRef.current += 1;
+    retakeStartedRef.current = null;
+    clearCountdown(); clearAutoProceed();
+    setIsCapturing(false);
+    setRetakingIdx(null);
+    setStep('TEMPLATE_SELECTION'); setSelectedTemplate(null);
+    setError(null); setCapturedCount(0); setCurrentShotIdx(0);
+    lsSet(LS_LAST_TEMPLATE, null);
+  };
+
+  // Operator helpers
+  const handlePickCustomTemplate = async (layoutMode) => {
+    try {
+      const filePath = await window.electronAPI.pickTemplateFile();
+      if (!filePath) return;
+      const name = filePath.split(/[\\/]/).pop().replace(/\.[^.]+$/, '');
+      const info  = await window.electronAPI.getTemplateInfo(filePath);
+      return {
+        id: `custom_${Date.now()}`,
+        name,
+        overlayPngPath: filePath,
+        isCustom: true,
+        enabled: true,
+        width: info?.width || null,
+        height: info?.height || null,
+        orientation: layoutMode || info?.orientation || ((info?.width || 0) > (info?.height || 0) ? 'landscape' : 'portrait'),
+        layoutMode: layoutMode || info?.orientation || ((info?.width || 0) > (info?.height || 0) ? 'landscape' : 'portrait'),
+        slots: info?.slots || [],
+        fitMode: 'cover',
+      };
+    } catch (err) { setError('Could not pick template: ' + err.message); }
+  };
+
+  const saveCustomTemplate = (template) => {
+    setCustomTemplates(prev => [...prev.filter(x => x.overlayPngPath !== template.overlayPngPath), {
+      ...template,
+      layoutMode: template.layoutMode || template.orientation || 'portrait',
+      orientation: template.layoutMode || template.orientation || 'portrait',
+    }]);
+  };
+
+  const updateCustomTemplateSlots = (id, slots, fitMode) => {
+    setCustomTemplates(prev => prev.map(template =>
+      template.id === id ? { ...template, slots, fitMode: fitMode || template.fitMode || 'cover' } : template
+    ));
+    setSelectedTemplate(prev => prev?.id === id
+      ? { ...prev, slots, fitMode: fitMode || prev.fitMode || 'cover' }
+      : prev);
+  };
+
+  const updateCustomTemplateLayout = (id, layoutMode) => {
+    setCustomTemplates(prev => prev.map(template =>
+      template.id === id ? { ...template, layoutMode, orientation: layoutMode } : template
+    ));
+  };
+
+  const handleRemoveCustomTemplate = (id) => {
+    setCustomTemplates(prev => prev.filter(x => x.id !== id));
+    if (selectedTemplate?.id === id) { setSelectedTemplate(null); lsSet(LS_LAST_TEMPLATE, null); }
+  };
+
+  const toggleBuiltin = (id) => {
+    setHiddenBuiltins(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const toggleCustomTemplate = (id) => {
+    setCustomTemplates(prev => prev.map(template =>
+      template.id === id ? { ...template, enabled: template.enabled === false } : template
+    ));
+  };
+
+  // Gallery
+  const openGallery = async () => {
+    setStep('GALLERY'); setActiveSession(null); setSessionsLoading(true);
+    try { setSessions(await window.electronAPI.listSessions()); }
+    catch (err) { setError('Could not load gallery: ' + err.message); }
+    finally { setSessionsLoading(false); }
+  };
+
+  const handleDeleteSession = async () => {
+    if (!activeSession || !window.confirm('Delete this session and all of its photos permanently?')) return;
+    try {
+      await window.electronAPI.deleteSession(activeSession.id);
+      setActiveSession(null);
+      setSessions(await window.electronAPI.listSessions());
+    } catch (err) {
+      setError(`Could not delete session: ${err.message}`);
+    }
+  };
+
+  const openLightbox  = (url, label) => { setLightboxUrl(url); setLightboxLabel(label); };
+  const closeLightbox = () => { setLightboxUrl(null); setLightboxLabel(''); };
+
+
+
+  // ─── Derived ──────────────────────────────────────────────────────────────────
+
+  const isCounting = countdown !== null;
+  const isRetaking = retakingIdx !== null;
+  const captureDisabled = isCapturing || isProcessing || (mode === 'webcam' && !isStreamReady);
+  const activeCss = FILTERS.find(f => f.id === activeFilter)?.css || 'none';
+  const visibleBuiltins = builtinTemplates.filter(t => !hiddenBuiltins.includes(t.id));
+  const allVisibleTpls = [...visibleBuiltins, ...customTemplates.filter(template => template.enabled !== false)];
+  const hideNavbar = step === 'LIVE_VIEW';
+  const openSettings = () => {
+    settingsReturnStepRef.current = step === 'GALLERY' || step === 'SETTINGS'
+      ? 'TEMPLATE_SELECTION'
+      : step;
+    setStep('SETTINGS');
+  };
+  const closeSettings = () => {
+    const returnStep = settingsReturnStepRef.current;
+    setStep(returnStep === 'GALLERY' || returnStep === 'SETTINGS' ? 'TEMPLATE_SELECTION' : (returnStep || 'TEMPLATE_SELECTION'));
+  };
+
+  const changeTheme = (themeKey) => {
+    setActiveTheme(themeKey);
+    setCustomAccent(null);
+  };
+
+  const selectOutputFolder = async () => {
+    const directory = await window.electronAPI.selectOutputFolder();
+    if (directory) setOutputDir(directory);
+  };
+
+  const openOutputFolder = async () => {
+    try {
+      await window.electronAPI.openOutputFolder();
+    } catch (err) {
+      setError(`Could not open output folder: ${err.message}`);
+    }
+  };
+
+  const selectDigiCamControl = async () => {
+    try {
+      const directory = await window.electronAPI.pickDigiCamControlPath();
+      if (directory) {
+        setDigiCamControlPath(directory);
+        setDigiCamControlAvailable(true);
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleFilterChange = (filterId) => {
+    setActiveFilter(filterId);
+    clearAutoProceed();
+    startAutoProceed(() => generateStrip(rawFrames, sessionTs));
+  };
+
+  const handleGenerateStrip = () => {
+    clearAutoProceed();
+    generateStrip(rawFrames, sessionTs);
+  };
+
+  const testCloudConnection = async () => {
+    try {
+      const result = await window.electronAPI.testAndCleanupCloud();
+      setCloudStatus(result);
+      return result;
+    } catch (err) {
+      setCloudStatus({ configured: false, online: false, error: err.message });
+      throw err;
+    }
+  };
+
+  return {
+    step, setStep, stepLabels: STEP_LABELS, themes: THEMES,
+    showFlash, lightboxUrl, lightboxLabel, closeLightbox, openLightbox,
+    isProcessing, activeFilter, printMsg, printerToast, hideNavbar, openGallery, openSettings,
+    selectedTemplate, setActiveSession, activeSession, resultPhotoUrl, resultShareUrl, resultLoopUrl, rawFrames, activeCss,
+    resultFilename, isPrinting, handlePrint, handleNewSession, sessions, sessionsLoading, formatDate, handleDeleteSession,
+    outputDir, digiCamControlPath, digiCamControlAvailable, printers, selectedPrinter, mode, devices, selectedDeviceId, mirror, shotOverride, countdownDuration, flashEnabled,
+    builtinTemplates, hiddenBuiltins, customTemplates, activeTheme, customAccent, setActiveTheme, setCustomAccent,
+    saveCustomTemplate, handlePickCustomTemplate, handleRemoveCustomTemplate, toggleBuiltin, toggleCustomTemplate, updateCustomTemplateLayout, updateCustomTemplateSlots,
+    handleTemplateSelect, allVisibleTpls, videoRef, isStreamReady, isCapturing, isCounting, countdown, shotCount, capturedCount, currentShotIdx,
+    captureDisabled, handleBackToTemplates, handleTakePhoto, switchDevice, error, retakingIdx, isRetaking, autoProceedSec, handleRetakeSingleShot,
+    templateThumbSrc, templateInfo, clearAutoProceed, startAutoProceed, generateStrip, sessionTs, handlePrinterSave, handlePrinterTest,
+    setOutputDir, setDigiCamControlPath, setDigiCamControlAvailable, setSelectedPrinter, setMode, setSelectedDeviceId, setMirror, setShotOverride, setCountdownDuration, setFlashEnabled,
+    setError, setActiveFilter, closeSettings, changeTheme, selectOutputFolder, openOutputFolder, selectDigiCamControl,
+    handleFilterChange, handleGenerateStrip, cloudQrMode, setCloudQrMode, cloudStatus, testCloudConnection,
+  };
+}
