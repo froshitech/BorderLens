@@ -58,7 +58,7 @@ export function normalizeCustomTemplates(templates) {
       enabled: template.enabled !== false,
       orientation: template.orientation || (template.width > template.height ? 'landscape' : 'portrait'),
       layoutMode: template.layoutMode || template.orientation || (template.width > template.height ? 'landscape' : 'portrait'),
-      fitMode: template.fitMode === 'contain' ? 'contain' : 'cover',
+      fitMode: ['cover', 'contain', 'fill'].includes(template.fitMode) ? template.fitMode : 'cover',
     }))
     : [];
 }

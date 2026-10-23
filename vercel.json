@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/viewer.html",
+      "destination": "/src/public/viewer.html"
+    }
+  ]
+}

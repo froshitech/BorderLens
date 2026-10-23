@@ -124,6 +124,7 @@ function StripPreview({ frames, templateSrc, templateInfo, fitMode, layoutMode, 
       <div className="strip-preview-slots">
         {Array.from({ length: shotCount }).map((_, i) => {
           const slot = slots[i];
+          if (!slot) return null;
           const slotStyle = {
             left: `${(slot.x / canvasWidth) * 100}%`,
             top: `${(slot.y / canvasHeight) * 100}%`,
@@ -132,7 +133,7 @@ function StripPreview({ frames, templateSrc, templateInfo, fitMode, layoutMode, 
           };
           return (
           <div key={i} className="strip-preview-slot" style={slotStyle}>
-            {frames[i] ? <img src={frames[i].url} alt={`Shot ${i + 1}`} className="strip-preview-slot-img" style={{ filter: activeCss, objectFit: fitMode === 'contain' ? 'contain' : 'cover' }} /> : <div className="strip-preview-slot-empty"><span>{i + 1}</span></div>}
+            {frames[i] ? <img src={frames[i].url} alt={`Shot ${i + 1}`} className="strip-preview-slot-img" style={{ filter: activeCss, objectFit: fitMode }} /> : <div className="strip-preview-slot-empty"><span>{i + 1}</span></div>}
           </div>
           );
         })}

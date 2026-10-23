@@ -41,5 +41,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Utilities ──────────────────────────────────────────────────────────────
   pickTemplateFile:     ()             => ipcRenderer.invoke('pick-template-file'),
   getTemplateInfo:      (templatePath) => ipcRenderer.invoke('get-template-info', templatePath),
+  detectTemplateSlots:  (templatePath) => ipcRenderer.invoke('detect-template-slots', templatePath),
   getTemplateThumbnail: (filePath)     => ipcRenderer.invoke('get-template-thumbnail', filePath),
 });

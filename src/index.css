@@ -601,6 +601,8 @@ html, body {
   transition: background 0.15s;
 }
 .settings-template-remove:hover { background: rgba(231,76,60,0.18); }
+.settings-template-edit { border: 1px solid var(--accent); color: var(--accent); background: transparent; border-radius: var(--radius-xs); padding: 0.25rem 0.55rem; font-size: 0.72rem; cursor: pointer; white-space: nowrap; }
+.settings-template-edit:hover { background: var(--accent-soft); }
 .template-slot-editor {
   margin: 0 0 0.6rem; padding: 0.65rem 0.75rem;
   background: var(--bg-main); border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -612,6 +614,44 @@ html, body {
 .template-slot-fields label { display: flex; flex-direction: column; gap: 0.15rem; }
 .template-slot-fields small { color: var(--text-hint); font-size: 0.62rem; }
 .template-slot-fields input { width: 100%; min-width: 0; padding: 0.35rem; }
+
+.template-editor-page { width: 100vw; height: 100vh; padding: 1rem 1.5rem 1.5rem; overflow: hidden; background: var(--bg-main); }
+.template-editor-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.template-editor-header h1 { margin: 0.35rem 0 0; font-size: 1.4rem; color: var(--text-primary); }
+.template-editor-header p { margin: 0.2rem 0 0; color: var(--text-hint); font-size: 0.8rem; }
+.template-editor-layout { height: calc(100% - 5rem); display: grid; grid-template-columns: 220px minmax(0, 1fr) 240px; gap: 1rem; }
+.template-editor-toolbar, .template-editor-layers { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem; overflow-y: auto; }
+.template-editor-toolbar h3, .template-editor-layers h3 { margin: 0 0 0.6rem; color: var(--text-primary); }
+.template-editor-toolbar p { color: var(--text-hint); font-size: 0.78rem; line-height: 1.45; }
+.template-editor-toolbar label { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 1rem; color: var(--text-secondary); font-size: 0.78rem; }
+.template-editor-toolbar select { padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-xs); background: var(--bg-main); color: var(--text-primary); }
+.template-editor-library { display: flex; flex-direction: column; gap: 0.4rem; margin: 0.8rem 0; }
+.template-editor-library-row { display: flex; align-items: center; gap: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 0.45rem; background: var(--bg-main); }
+.template-editor-library-row--active { border-color: var(--accent); background: var(--accent-soft); }
+.template-editor-library-row > button { flex: 1; border: 0; background: none; color: var(--text-secondary); text-align: left; cursor: pointer; }
+.template-editor-library-row input { position: absolute; opacity: 0; }
+.template-editor-library-row label { width: 2rem; height: 1.1rem; border-radius: 999px; background: var(--border-strong); cursor: pointer; }
+.template-editor-library-row label span { display: block; width: 0.85rem; height: 0.85rem; margin: 0.125rem; border-radius: 50%; background: #fff; transition: transform 0.15s; }
+.template-editor-library-row input:checked + span { transform: translateX(0.9rem); background: var(--accent); }
+.template-editor-fit-label { display: flex; flex-direction: column; gap: 0.35rem; margin: 0.8rem 0; color: var(--text-secondary); font-size: 0.78rem; }
+.template-editor-fit-label select { padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-xs); background: var(--bg-main); color: var(--text-primary); }
+.template-editor-canvas-wrap { min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.template-editor-canvas { position: relative; width: min(100%, 720px); max-height: 100%; background: #171827; box-shadow: var(--shadow-card); overflow: hidden; }
+.template-editor-background { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.template-editor-slot { position: absolute; display: flex; align-items: center; justify-content: center; border: 2px solid rgba(251,146,60,0.9); background: rgba(251,146,60,0.28); color: #fff; font-size: 0.75rem; font-weight: 700; cursor: move; user-select: none; touch-action: none; }
+.template-editor-slot--active { border-color: #fb923c; background: rgba(251,146,60,0.42); box-shadow: 0 0 0 2px rgba(251,146,60,0.25); }
+.template-editor-handle { position: absolute; right: -0.65rem; bottom: -0.65rem; width: 1.35rem; height: 1.35rem; border: 2px solid #fff; border-radius: 50%; background: #f97316; color: #fff; cursor: nwse-resize; line-height: 1; }
+.template-editor-layer { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%; padding: 0.6rem; border: 1px solid var(--border); border-radius: var(--radius-xs); background: var(--bg-main); color: var(--text-secondary); font-size: 0.8rem; text-align: left; }
+.template-editor-layer + .template-editor-layer { margin-top: 0.5rem; }
+.template-editor-layer button:first-child { flex: 1; text-align: left; background: none; border: 0; color: inherit; cursor: pointer; }
+.template-editor-layer--active { border-color: var(--accent); color: var(--accent); }
+.template-editor-layer--background { cursor: default; }
+.template-editor-delete { border: 0; background: transparent; color: var(--red); font-size: 0.7rem; cursor: pointer; }
+.template-editor-empty { padding: 3rem; color: var(--text-secondary); }
+@media (max-width: 900px) {
+  .template-editor-layout { grid-template-columns: 170px minmax(0, 1fr); }
+  .template-editor-layers { grid-column: 1 / -1; }
+}
 
 .settings-add-btn {
   background: var(--bg-elevated);

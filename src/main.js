@@ -438,7 +438,7 @@ async function detectPhotoSlots(templatePath, fullW, fullH, orientation = 'portr
   const CHANNELS = 4;
   const alpha = (x, y) => data[(y * sw + x) * CHANNELS + 3];
 
-  const ALPHA_THRESH = 20; // pixels with alpha < this are "transparent"
+  const ALPHA_THRESH = 1; // only fully transparent pixels are slot candidates
 
   // ── Pass 1: mark transparent pixel rows ──────────────────────────────────
   // For each row, is the majority of the row transparent?
@@ -449,7 +449,7 @@ async function detectPhotoSlots(templatePath, fullW, fullH, orientation = 'portr
   // Build a boolean grid: true = transparent
   const isTransparent = (x, y) => alpha(x, y) < ALPHA_THRESH;
 
-  if (orientation === 'landscape') {
+  {
     // Landscape slots are 2D regions. Row/column projections merge adjacent
     // grid cells, so walk the alpha mask as connected components instead.
     const visited = new Uint8Array(sw * sh);
@@ -572,16 +572,23 @@ async function detectPhotoSlots(templatePath, fullW, fullH, orientation = 'portr
 }
 
 async function resizePhotoToSlot(photoPath, slot, filterType, fitMode = 'cover') {
-  const width = Math.max(1, Math.round(slot.width ?? slot.w));
-  const height = Math.max(1, Math.round(slot.height ?? slot.h));
+  const width = Math.max(1, Math.round(Number(slot.width ?? slot.w) || 1));
+  const height = Math.max(1, Math.round(Number(slot.height ?? slot.h) || 1));
   return applyFilter(
     sharp(photoPath).resize(width, height, {
-      fit: fitMode === 'contain' ? 'contain' : 'cover',
+      fit: ['cover', 'contain', 'fill'].includes(fitMode) ? fitMode : 'cover',
       position: 'centre',
       ...HIGH_QUALITY_RESIZE,
     }),
     filterType
   ).toBuffer();
+}
+
+function getAbsoluteSlotPosition(slot) {
+  return {
+    left: Math.max(0, Math.round(Number(slot.x) || 0)),
+    top: Math.max(0, Math.round(Number(slot.y) || 0)),
+  };
 }
 
 async function processPortraitStrip(rawFilepaths, templatePath, outWidth, outHeight, filterType, customSlots = null, fitMode = 'cover') {
@@ -610,7 +617,7 @@ async function processPortraitStrip(rawFilepaths, templatePath, outWidth, outHei
 
   return Promise.all(rawFilepaths.map(async (filePath, i) => {
     const slot = slots[i % slots.length];
-    return { input: await resizePhotoToSlot(filePath, slot, filterType, fitMode), top: Math.round(slot.y), left: Math.round(slot.x) };
+    return { input: await resizePhotoToSlot(filePath, slot, filterType, fitMode), ...getAbsoluteSlotPosition(slot) };
   }));
 }
 
@@ -654,7 +661,7 @@ async function processLandscapeGrid(rawFilepaths, templatePath, outWidth, outHei
     : getLandscapeGridSlots(outWidth, outHeight, rawFilepaths.length);
   return Promise.all(rawFilepaths.map(async (filePath, index) => {
     const slot = slots[index];
-    return { input: await resizePhotoToSlot(filePath, slot, filterType, fitMode), top: Math.round(slot.y), left: Math.round(slot.x) };
+    return { input: await resizePhotoToSlot(filePath, slot, filterType, fitMode), ...getAbsoluteSlotPosition(slot) };
   }));
 }
 
@@ -959,6 +966,26 @@ app.whenReady().then(async () => {
     } catch {
       return null;
     }
+  });
+
+  ipcMain.handle('detect-template-slots', async (event, templatePath) => {
+    if (!templatePath || !fs.existsSync(templatePath)) {
+      throw new Error('Template file was not found.');
+    }
+    const meta = await sharp(templatePath).metadata();
+    if (!meta.width || !meta.height) throw new Error('Template dimensions are unavailable.');
+    const slots = await detectPhotoSlots(
+      templatePath,
+      meta.width,
+      meta.height,
+      meta.width > meta.height ? 'landscape' : 'portrait'
+    );
+    return slots.map(slot => ({
+      x: slot.x,
+      y: slot.y,
+      width: slot.w,
+      height: slot.h,
+    }));
   });
 
   // ── process-strip: composite + thumbnail ────────────────────────────────────

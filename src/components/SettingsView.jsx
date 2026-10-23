@@ -1,27 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 export default function SettingsView({
   themes, activeTheme, customAccent, onThemeChange, onAccentChange,
   outputDir, digiCamControlPath, digiCamControlAvailable, printers, selectedPrinter,
-  mode, devices, selectedDeviceId, mirror, shotOverride, countdownDuration, flashEnabled, builtinTemplates, hiddenBuiltins,
-  customTemplates, isPrinting, canTestPrint, onSelectOutput, onOpenOutput, onSelectDigi,
+  mode, devices, selectedDeviceId, mirror, shotOverride, countdownDuration, flashEnabled,
+  isPrinting, canTestPrint, onSelectOutput, onOpenOutput, onSelectDigi,
   cloudQrMode, cloudStatus, onCloudQrModeChange, onTestCloud,
   onPrinterChange, onSavePrinter, onTestPrint, onModeChange, onDeviceChange, onMirrorChange,
-  onShotOverride, onCountdownDuration, onFlashChange, onToggleBuiltin, onToggleCustom, onUpdateCustomLayout, onUpdateCustomSlots, onRemoveCustom, onAddCustom, onSaveCustomTemplate, onBack,
+  onShotOverride, onCountdownDuration, onFlashChange, onOpenVisualEditor, onBack,
 }) {
-  const [templateError, setTemplateError] = useState(null);
-
-  const pickCustomTemplate = async (layoutMode) => {
-    setTemplateError(null);
-    try {
-      const template = await onAddCustom(layoutMode);
-      if (!template) return;
-      onSaveCustomTemplate({ ...template, orientation: layoutMode, layoutMode });
-    } catch (err) {
-      setTemplateError(err.message || 'Could not prepare template.');
-    }
-  };
-
   return (
     <div className="settings-page">
       <div className="settings-page-header">
@@ -158,39 +145,9 @@ export default function SettingsView({
         </div>
         <div className="settings-column settings-column--right">
           <section className="settings-section">
-            <h3>Template Manager</h3>
-            <p className="settings-hint">Show or hide templates on the guest selection screen.</p>
-            <div className="settings-template-list">
-              {builtinTemplates.map(template => <TemplateToggle key={template.id} name={template.name} checked={!hiddenBuiltins.includes(template.id)} onChange={() => onToggleBuiltin(template.id)} />)}
-              {customTemplates.map(template => (
-                <React.Fragment key={template.id}>
-                <div className="settings-template-row">
-                  <TemplateToggle name={`🖼️ ${template.name}`} checked={template.enabled !== false} onChange={() => onToggleCustom(template.id)} />
-                  {template.width && <span className="settings-template-dim">{template.width}×{template.height}</span>}
-                  <select
-                    className="settings-template-layout"
-                    value={template.layoutMode || template.orientation || 'portrait'}
-                    onChange={event => onUpdateCustomLayout(template.id, event.target.value)}
-                    aria-label={`Layout mode for ${template.name}`}
-                  >
-                    <option value="portrait">📱 Portrait Strip</option>
-                    <option value="landscape">🖼️ Landscape Grid</option>
-                  </select>
-                  <button className="settings-template-remove" onClick={() => onRemoveCustom(template.id)}>✕ Remove</button>
-                </div>
-                <TemplateSlotEditor template={template} onChange={onUpdateCustomSlots} />
-                </React.Fragment>
-              ))}
-            </div>
-            {templateError && <p className="settings-hint settings-hint--error">{templateError}</p>}
-            <div className="template-add-actions">
-              <button className="settings-add-btn template-add-btn" onClick={() => pickCustomTemplate('portrait')}>
-                📱 + Add Portrait Template
-              </button>
-              <button className="settings-add-btn template-add-btn" onClick={() => pickCustomTemplate('landscape')}>
-                🖼️ + Add Landscape Template
-              </button>
-            </div>
+            <h3>Template Management</h3>
+            <p className="settings-hint">Create and fine-tune photo layouts in the dedicated visual workspace.</p>
+            <button className="settings-add-btn" onClick={() => onOpenVisualEditor()}>Open Visual Template Editor</button>
           </section>
         </div>
       </div>
@@ -203,35 +160,4 @@ function TemplateToggle({ name, checked, onChange }) {
     <input type="checkbox" checked={checked} onChange={onChange} />
     <span className="toggle-track"><span className="toggle-thumb" /></span><span className="settings-template-name">{name}</span>
   </label>;
-}
-
-function TemplateSlotEditor({ template, onChange }) {
-  const slots = template.slots || [];
-  const updateSlot = (index, key, value) => {
-    const next = slots.map((slot, slotIndex) => slotIndex === index
-      ? { ...slot, [key]: Math.max(0, Number(value) || 0) }
-      : slot);
-    onChange(template.id, next, template.fitMode || 'cover');
-  };
-  return (
-    <div className="template-slot-editor">
-      <div className="template-slot-editor-header">
-        <strong>Fine-tune photo slots</strong>
-        <select className="settings-template-fit" value={template.fitMode || 'cover'} onChange={event => onChange(template.id, slots, event.target.value)}>
-          <option value="cover">Cover (crop to fill)</option>
-          <option value="contain">Contain (fit with padding)</option>
-        </select>
-      </div>
-      {slots.length === 0 ? <p className="settings-hint">No slots detected for this template.</p> : slots.map((slot, index) => (
-        <div className="template-slot-fields" key={index}>
-          <span>Shot {index + 1}</span>
-          {[
-            ['x', 'X'], ['y', 'Y'], ['w', 'W'], ['h', 'H'],
-          ].map(([key, label]) => (
-            <label key={key}><small>{label}</small><input type="number" min="0" value={slot[key] ?? (key === 'w' ? slot.width : key === 'h' ? slot.height : 0)} onChange={event => updateSlot(index, key, event.target.value)} /></label>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
 }

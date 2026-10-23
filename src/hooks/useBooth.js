@@ -22,8 +22,10 @@ export default function useBooth() {
   const [cloudQrMode, setCloudQrMode] = useState(() => lsGet('pb_cloud_qr_mode', 'local'));
   const [cloudStatus, setCloudStatus] = useState({ configured: false, online: false });
   const [hiddenBuiltins, setHiddenBuiltins] = useState(() => lsGet('pb_hidden_builtins', []));
+  const [builtinSlotOverrides, setBuiltinSlotOverrides] = useState(() => lsGet('pb_builtin_slot_overrides', {}));
   const [activeTheme, setActiveTheme] = useState(() => lsGet(LS_THEME, 'lavender-dream'));
   const [customAccent, setCustomAccent] = useState(() => lsGet(LS_CUSTOM_ACCENT, null));
+  const [templateEditorId, setTemplateEditorId] = useState(null);
 
   // ── Template & filter ───────────────────────────────────────────────────────
   const [selectedTemplate,    setSelectedTemplate]    = useState(null);
@@ -93,6 +95,7 @@ export default function useBooth() {
   useEffect(() => { lsSet(LS_CUSTOM_ACCENT, customAccent); }, [customAccent]);
   useEffect(() => { applyTheme(THEMES[activeTheme] || THEMES['lavender-dream'], customAccent); }, [activeTheme, customAccent]);
   useEffect(() => { lsSet('pb_hidden_builtins', hiddenBuiltins); }, [hiddenBuiltins]);
+  useEffect(() => { lsSet('pb_builtin_slot_overrides', builtinSlotOverrides); }, [builtinSlotOverrides]);
 
   useEffect(() => {
     if (step !== 'SETTINGS') return;
@@ -474,14 +477,78 @@ export default function useBooth() {
     }]);
   };
 
-  const updateCustomTemplateSlots = (id, slots, fitMode) => {
+  const updateCustomTemplateSlots = (id, slotIndex, axis, value) => {
+    const numericValue = Math.max(0, Number(value) || 0);
     setCustomTemplates(prev => prev.map(template =>
-      template.id === id ? { ...template, slots, fitMode: fitMode || template.fitMode || 'cover' } : template
+      template.id === id ? {
+        ...template,
+        slots: (template.slots || []).map((slot, index) => index === slotIndex ? { ...slot, [axis]: numericValue } : slot),
+      } : template
     ));
     setSelectedTemplate(prev => prev?.id === id
-      ? { ...prev, slots, fitMode: fitMode || prev.fitMode || 'cover' }
+      ? { ...prev, slots: (prev.slots || []).map((slot, index) => index === slotIndex ? { ...slot, [axis]: numericValue } : slot) }
       : prev);
+    setBuiltinSlotOverrides(prev => {
+      const builtin = builtinTemplates.find(item => item.id === id);
+      if (!builtin) return prev;
+      const slots = (prev[id]?.slots || builtin.slots || []).map((slot, index) => index === slotIndex ? { ...slot, [axis]: numericValue } : slot);
+      return { ...prev, [id]: { ...(prev[id] || {}), slots } };
+    });
   };
+
+  const updateCustomTemplateFitMode = (id, fitMode) => {
+    const normalizedFitMode = ['cover', 'contain', 'fill'].includes(fitMode) ? fitMode : 'cover';
+    setCustomTemplates(prev => prev.map(template => template.id === id ? { ...template, fitMode: normalizedFitMode } : template));
+    setSelectedTemplate(prev => prev?.id === id ? { ...prev, fitMode: normalizedFitMode } : prev);
+    if (builtinTemplates.some(template => template.id === id)) {
+      setBuiltinSlotOverrides(prev => ({ ...prev, [id]: { ...(prev[id] || {}), fitMode: normalizedFitMode } }));
+    }
+  };
+
+  const addCustomTemplateSlot = id => {
+    const template = customTemplates.find(item => item.id === id);
+    const builtin = builtinTemplates.find(item => item.id === id);
+    const source = template || (builtin ? { ...builtin, ...(builtinSlotOverrides[id] || {}) } : null);
+    if (!source) return;
+    const next = [...(source.slots || []), { x: 0, y: 0, w: Math.round((source.width || 400) * 0.8), h: Math.round((source.height || 400) * 0.15) }];
+    if (!template) {
+      setBuiltinSlotOverrides(prev => ({ ...prev, [id]: { ...(prev[id] || {}), slots: next } }));
+      return;
+    }
+    updateCustomTemplateSlots(id, (next.length - 1), 'x', next[next.length - 1].x);
+    setCustomTemplates(prev => prev.map(item => item.id === id ? { ...item, slots: next } : item));
+    setSelectedTemplate(prev => prev?.id === id ? { ...prev, slots: next } : prev);
+  };
+
+  const deleteCustomTemplateSlot = (id, index) => {
+    if (builtinTemplates.some(template => template.id === id)) {
+      const source = builtinSlotOverrides[id]?.slots || builtinTemplates.find(template => template.id === id)?.slots || [];
+      setBuiltinSlotOverrides(prev => ({ ...prev, [id]: { ...(prev[id] || {}), slots: source.filter((_, slotIndex) => slotIndex !== index) } }));
+      return;
+    }
+    setCustomTemplates(prev => prev.map(item => item.id === id ? { ...item, slots: (item.slots || []).filter((_, slotIndex) => slotIndex !== index) } : item));
+    setSelectedTemplate(prev => prev?.id === id ? { ...prev, slots: (prev.slots || []).filter((_, slotIndex) => slotIndex !== index) } : prev);
+  };
+
+  const detectCustomTemplateSlots = async id => {
+    const template = customTemplates.find(item => item.id === id) || builtinTemplates.find(item => item.id === id);
+    if (!template?.overlayPngPath) throw new Error('Select a saved custom template first.');
+    const slots = await window.electronAPI.detectTemplateSlots(template.overlayPngPath);
+    if (!Array.isArray(slots) || slots.length === 0) throw new Error('No transparent photo slots were detected.');
+    if (template.isCustom) {
+      setCustomTemplates(prev => prev.map(item => item.id === id ? { ...item, slots } : item));
+    } else {
+      setBuiltinSlotOverrides(prev => ({ ...prev, [id]: { ...(prev[id] || {}), slots } }));
+    }
+    setSelectedTemplate(prev => prev?.id === id ? { ...prev, slots } : prev);
+    return slots;
+  };
+
+  const openTemplateEditor = id => {
+    setTemplateEditorId(id || allVisibleTpls[0]?.id || null);
+    setStep('TEMPLATE_EDITOR');
+  };
+  const closeTemplateEditor = () => { setTemplateEditorId(null); setStep('SETTINGS'); };
 
   const updateCustomTemplateLayout = (id, layoutMode) => {
     setCustomTemplates(prev => prev.map(template =>
@@ -535,8 +602,11 @@ export default function useBooth() {
   const captureDisabled = isCapturing || isProcessing || (mode === 'webcam' && !isStreamReady);
   const activeCss = FILTERS.find(f => f.id === activeFilter)?.css || 'none';
   const visibleBuiltins = builtinTemplates.filter(t => !hiddenBuiltins.includes(t.id));
-  const allVisibleTpls = [...visibleBuiltins, ...customTemplates.filter(template => template.enabled !== false)];
-  const hideNavbar = step === 'LIVE_VIEW';
+  const allVisibleTpls = [
+    ...visibleBuiltins.map(template => ({ ...template, ...(builtinSlotOverrides[template.id] || {}) })),
+    ...customTemplates.filter(template => template.enabled !== false),
+  ];
+  const hideNavbar = step === 'LIVE_VIEW' || step === 'TEMPLATE_EDITOR';
   const openSettings = () => {
     settingsReturnStepRef.current = step === 'GALLERY' || step === 'SETTINGS'
       ? 'TEMPLATE_SELECTION'
@@ -608,7 +678,8 @@ export default function useBooth() {
     resultFilename, isPrinting, handlePrint, handleNewSession, sessions, sessionsLoading, formatDate, handleDeleteSession,
     outputDir, digiCamControlPath, digiCamControlAvailable, printers, selectedPrinter, mode, devices, selectedDeviceId, mirror, shotOverride, countdownDuration, flashEnabled,
     builtinTemplates, hiddenBuiltins, customTemplates, activeTheme, customAccent, setActiveTheme, setCustomAccent,
-    saveCustomTemplate, handlePickCustomTemplate, handleRemoveCustomTemplate, toggleBuiltin, toggleCustomTemplate, updateCustomTemplateLayout, updateCustomTemplateSlots,
+    saveCustomTemplate, handlePickCustomTemplate, handleRemoveCustomTemplate, toggleBuiltin, toggleCustomTemplate, updateCustomTemplateLayout, updateCustomTemplateSlots, updateCustomTemplateFitMode, addCustomTemplateSlot, deleteCustomTemplateSlot, detectCustomTemplateSlots, openTemplateEditor, closeTemplateEditor,
+    templateEditorId, editorTemplate: allVisibleTpls.find(template => template.id === templateEditorId) || null,
     handleTemplateSelect, allVisibleTpls, videoRef, isStreamReady, isCapturing, isCounting, countdown, shotCount, capturedCount, currentShotIdx,
     captureDisabled, handleBackToTemplates, handleTakePhoto, switchDevice, error, retakingIdx, isRetaking, autoProceedSec, handleRetakeSingleShot,
     templateThumbSrc, templateInfo, clearAutoProceed, startAutoProceed, generateStrip, sessionTs, handlePrinterSave, handlePrinterTest,
