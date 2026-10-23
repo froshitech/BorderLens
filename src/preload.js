@@ -38,6 +38,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openOutputFolder:     ()     => ipcRenderer.invoke('open-output-folder'),
   pickDigiCamControlPath:()    => ipcRenderer.invoke('pick-digicamcontrol-directory'),
 
+  // ── Remote Shutter & Template Control ──────────────────────────────────────
+  onRemoteTrigger: (callback) => {
+    const subscription = (event, ...args) => callback(...args);
+    ipcRenderer.on('remote-trigger-capture', subscription);
+    return () => ipcRenderer.removeListener('remote-trigger-capture', subscription);
+  },
+  onRemoteSelectTemplate: (callback) => {
+    const subscription = (event, templateId) => callback(templateId);
+    ipcRenderer.on('remote-select-template', subscription);
+    return () => ipcRenderer.removeListener('remote-select-template', subscription);
+  },
+  onRemoteProceedToCamera: (callback) => {
+    const subscription = (event, ...args) => callback(...args);
+    ipcRenderer.on('remote-proceed-to-camera', subscription);
+    return () => ipcRenderer.removeListener('remote-proceed-to-camera', subscription);
+  },
+  syncTemplatesToRemote: (templates, selectedTemplateId, step) =>
+    ipcRenderer.invoke('sync-templates-to-remote', templates, selectedTemplateId, step),
+  getRemoteControlUrl: () => ipcRenderer.invoke('get-remote-control-url'),
+
   // ── Utilities ──────────────────────────────────────────────────────────────
   pickTemplateFile:     ()             => ipcRenderer.invoke('pick-template-file'),
   getTemplateInfo:      (templatePath) => ipcRenderer.invoke('get-template-info', templatePath),

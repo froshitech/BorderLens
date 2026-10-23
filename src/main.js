@@ -46,14 +46,170 @@ function logCloudError(operation, err) {
 
 // ─── Express server ───────────────────────────────────────────────────────────
 const server = express();
+server.use(express.json());
 
 // CORS — allow any origin (phones on LAN, dev tools, etc.)
 server.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
+});
+
+function getRemoteHtmlPath() {
+  const candidates = [
+    path.join(__dirname, 'public', 'remote.html'),
+    path.join(__dirname, '../public', 'remote.html'),
+    path.join(__dirname, '../../src/public', 'remote.html'),
+    path.join(process.cwd(), 'src', 'public', 'remote.html'),
+    path.join(process.cwd(), 'public', 'remote.html'),
+    path.join(app.getAppPath(), 'src', 'public', 'remote.html'),
+    path.join(app.getAppPath(), 'public', 'remote.html'),
+  ];
+  return candidates.find(p => fs.existsSync(p)) || null;
+}
+
+// ── /remote — mobile remote shutter web control ─────────────────────────────
+server.get('/remote', (req, res) => {
+  const htmlPath = getRemoteHtmlPath();
+  if (htmlPath) {
+    return res.sendFile(htmlPath);
+  }
+  return res.status(404).send('Remote control page not found.');
+});
+
+// ── /api/trigger-shutter — mobile remote capture trigger ────────────────────
+server.post('/api/trigger-shutter', (req, res) => {
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send('remote-trigger-capture');
+    res.json({ success: true, message: 'Shutter triggered' });
+  } else {
+    res.status(500).json({ error: 'Booth window not ready' });
+  }
+});
+
+let remoteTemplatesList = [];
+let remoteSelectedTemplateId = null;
+let remoteCurrentStep = 'TEMPLATE_SELECTION';
+
+// ── /api/ping — remote control connection health check ──────────────────────
+server.get('/api/ping', (req, res) => {
+  res.json({
+    success: true,
+    booth: 'BorderLens',
+    ready: Boolean(mainWindow && mainWindow.webContents),
+    step: remoteCurrentStep,
+    mode: remoteCurrentStep === 'LIVE_VIEW' ? 'capture' : 'select',
+    selectedTemplateId: remoteSelectedTemplateId,
+  });
+});
+
+// ── /api/booth-status — get current booth step & selection ──────────────────
+server.get('/api/booth-status', (req, res) => {
+  res.json({
+    step: remoteCurrentStep,
+    selectedTemplateId: remoteSelectedTemplateId,
+    mode: remoteCurrentStep === 'LIVE_VIEW' ? 'capture' : 'select',
+  });
+});
+
+// ── /api/proceed-to-camera — advance booth from templates to camera ─────────
+server.post('/api/proceed-to-camera', (req, res) => {
+  remoteCurrentStep = 'LIVE_VIEW';
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send('remote-proceed-to-camera');
+    res.json({ success: true, message: 'Proceeding to camera' });
+  } else {
+    res.status(500).json({ error: 'Booth window not ready' });
+  }
+});
+
+// ── /api/templates — get active templates for mobile remote ──────────────────
+server.get('/api/templates', (req, res) => {
+  let list = remoteTemplatesList;
+  if (!list || list.length === 0) {
+    list = [
+      { id: 'classic', name: 'Classic Strip', layoutMode: 'portrait' },
+      { id: 'floral', name: 'Golden Celebration', layoutMode: 'portrait' },
+      { id: 'neon', name: 'VIP Neon', layoutMode: 'portrait' },
+    ];
+  }
+  const formatted = list.map(t => ({
+    id: t.id,
+    name: t.name || 'Template',
+    layoutMode: t.layoutMode || t.orientation || 'portrait',
+    isCustom: Boolean(t.isCustom),
+    isSelected: t.id === remoteSelectedTemplateId,
+    thumbnail: `/api/template-thumb/${t.id}`,
+  }));
+  res.json(formatted);
+});
+
+// ── /api/template-thumb/:id — serve thumbnail PNG for mobile remote ─────────
+server.get('/api/template-thumb/:id', async (req, res) => {
+  const { id } = req.params;
+  const target = (remoteTemplatesList || []).find(t => t.id === id);
+  let filePath = target?.overlayPngPath;
+
+  if (!filePath || !fs.existsSync(filePath)) {
+    const candidates = [
+      path.join(OUTPUT_DIR || '', 'templates', `template_${id}.png`),
+      path.join('D:\\photobooth_output', 'templates', `template_${id}.png`),
+    ];
+    filePath = candidates.find(p => fs.existsSync(p)) || null;
+  }
+
+  if (filePath && fs.existsSync(filePath)) {
+    try {
+      const buffer = await sharp(filePath)
+        .resize(240, null, { withoutEnlargement: true, ...HIGH_QUALITY_RESIZE })
+        .png()
+        .toBuffer();
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return res.send(buffer);
+    } catch (err) {
+      console.warn('[thumb] Failed to generate remote template thumbnail:', id, err.message);
+    }
+  }
+
+  res.status(404).send('Thumbnail not found');
+});
+
+// ── /api/select-template — mobile remote selects a template ─────────────────
+server.post('/api/select-template', (req, res) => {
+  const { templateId } = req.body || {};
+  if (!templateId) return res.status(400).json({ error: 'Missing templateId' });
+
+  remoteSelectedTemplateId = templateId;
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send('remote-select-template', templateId);
+    res.json({ success: true, selectedTemplateId: templateId });
+  } else {
+    res.status(500).json({ error: 'Booth window not ready' });
+  }
+});
+
+// ── Remote Shutter & Template IPC Handlers ──────────────────────────────────
+try { ipcMain.removeHandler('get-remote-control-url'); } catch (_) {}
+ipcMain.handle('get-remote-control-url', () => {
+  const ip = getLocalIPv4Address();
+  return `http://${ip}:${PORT}/remote`;
+});
+
+try { ipcMain.removeHandler('sync-templates-to-remote'); } catch (_) {}
+ipcMain.handle('sync-templates-to-remote', (event, templates = [], selectedId = null, step = null) => {
+  if (Array.isArray(templates) && templates.length > 0) {
+    remoteTemplatesList = templates;
+  }
+  if (selectedId !== undefined) {
+    remoteSelectedTemplateId = selectedId;
+  }
+  if (step) {
+    remoteCurrentStep = step;
+  }
+  return { success: true };
 });
 
 // ── /share/:sessionId  — mobile download portal ──────────────────────────────

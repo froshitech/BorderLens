@@ -630,6 +630,45 @@ export default function useBooth() {
     ...visibleBuiltins.map(template => ({ ...template, ...(builtinSlotOverrides[template.id] || {}) })),
     ...customTemplates.filter(template => template.enabled !== false),
   ];
+
+  // Listen for remote template selection from mobile web controller
+  useEffect(() => {
+    const unsub = window.electronAPI?.onRemoteSelectTemplate?.((templateId) => {
+      const match = allTemplates.find(t => t.id === templateId);
+      if (match) {
+        setSelectedTemplate(match);
+        lsSet(LS_LAST_TEMPLATE, match.id);
+        setError(null);
+      }
+    });
+    return () => { if (typeof unsub === 'function') unsub(); };
+  }, [allTemplates]);
+
+  // Listen for remote signal to proceed from template selection into camera
+  useEffect(() => {
+    const unsub = window.electronAPI?.onRemoteProceedToCamera?.(() => {
+      setStep(prevStep => {
+        if (prevStep === 'TEMPLATE_SELECTION') {
+          setSelectedTemplate(current => {
+            if (!current && allVisibleTpls.length > 0) {
+              lsSet(LS_LAST_TEMPLATE, allVisibleTpls[0].id);
+              return allVisibleTpls[0];
+            }
+            return current;
+          });
+          return 'LIVE_VIEW';
+        }
+        return prevStep;
+      });
+    });
+    return () => { if (typeof unsub === 'function') unsub(); };
+  }, [allVisibleTpls]);
+
+  // Sync visible templates, selected template & current step to mobile remote backend
+  useEffect(() => {
+    window.electronAPI?.syncTemplatesToRemote?.(allVisibleTpls, selectedTemplate?.id, step).catch?.(() => {});
+  }, [allVisibleTpls, selectedTemplate, step]);
+
   const hideNavbar = step === 'LIVE_VIEW' || step === 'TEMPLATE_EDITOR' || step === 'RESULT' || step === 'GALLERY';
   const openSettings = () => {
     settingsReturnStepRef.current = step === 'GALLERY' || step === 'SETTINGS'

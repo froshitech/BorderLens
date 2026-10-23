@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 
 export default function SettingsView({
   themes, activeTheme, customAccent, onThemeChange, onAccentChange,
@@ -9,6 +10,15 @@ export default function SettingsView({
   onPrinterChange, onSavePrinter, onTestPrint, onModeChange, onDeviceChange, onMirrorChange,
   onShotOverride, onCountdownDuration, onFlashChange, onOpenVisualEditor, onBack,
 }) {
+  const [remoteUrl, setRemoteUrl] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    window.electronAPI?.getRemoteControlUrl?.().then(url => {
+      if (active && url) setRemoteUrl(url);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
   return (
     <div className="settings-page">
       <div className="settings-page-header">
@@ -141,6 +151,24 @@ export default function SettingsView({
                 <button key={duration} type="button" className={`settings-pill ${countdownDuration === duration ? 'settings-pill--active' : ''}`} onClick={() => onCountdownDuration(duration)}>{duration}s</button>
               ))}
             </div>
+          </section>
+          <section className="settings-section remote-shutter-section">
+            <h3>📱 Remote Mobile Shutter</h3>
+            <p className="settings-hint">Scan with your phone on the same Wi-Fi network to trigger photos remotely.</p>
+            {remoteUrl ? (
+              <div className="remote-shutter-qr-card">
+                <div className="remote-shutter-qr-wrap">
+                  <QRCodeSVG value={remoteUrl} size={120} bgColor="#ffffff" fgColor="#111827" level="M" />
+                </div>
+                <div className="remote-shutter-info">
+                  <span className="remote-shutter-badge">📶 Wi-Fi Shutter Ready</span>
+                  <a href={remoteUrl} target="_blank" rel="noreferrer" className="remote-shutter-url">{remoteUrl}</a>
+                  <p className="settings-hint">Staff can scan this code to trigger the countdown hands-free from anywhere in the booth area.</p>
+                </div>
+              </div>
+            ) : (
+              <p className="settings-hint">Loading network address…</p>
+            )}
           </section>
         </div>
       </div>

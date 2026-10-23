@@ -21,6 +21,16 @@ export default function CameraView({
     return () => window.removeEventListener('keydown', handleShortcut);
   }, [captureDisabled, isCapturing, isCounting, onStart]);
 
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onRemoteTrigger?.(() => {
+      if (isCapturing || isCounting || captureDisabled) return;
+      onStart();
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [captureDisabled, isCapturing, isCounting, onStart]);
+
   return (
     <div className="live-fullscreen">
       <button className="live-back-btn" type="button" onClick={onBack}>

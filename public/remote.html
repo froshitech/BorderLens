@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>BorderLens Remote</title>
+  <meta name="theme-color" content="#0f0f11">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body {
+      background: #0f0f11;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 100vh;
+      min-height: 100dvh;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 1.25rem 1rem 1rem;
+      text-align: center;
+      overflow-x: hidden;
+      background-image: radial-gradient(circle at 50% 15%, #1c1c24 0%, #0f0f11 75%);
+    }
+
+    /* ── Header & Wordmark ──────────────────────────────────── */
+    .header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.35rem;
+      width: 100%;
+      margin-top: 0.25rem;
+    }
+    .wordmark {
+      font-size: 23px;
+      font-weight: 900;
+      letter-spacing: 2.5px;
+      color: #ffffff;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+    }
+    .wordmark span {
+      color: #ff3b30;
+      display: inline-block;
+      margin: 0 1px;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(46, 204, 113, 0.15);
+      color: #2ecc71;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.25s ease;
+    }
+    .status-badge.disconnected {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* ── Main Area ─────────────────────────────────────────── */
+    .main-wrap {
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+      flex: 1;
+      justify-content: center;
+      margin: 0.6rem 0;
+    }
+
+    /* ── Template Selection ────────────────────────────────── */
+    .section-title {
+      font-size: 12px;
+      color: #888899;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      font-weight: 700;
+      align-self: flex-start;
+      width: 100%;
+      max-width: 400px;
+      text-align: left;
+      padding-left: 2px;
+    }
+    .template-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      width: 100%;
+      max-width: 400px;
+      max-height: 28vh;
+      overflow-y: auto;
+      padding: 4px;
+      scrollbar-width: none;
+    }
+    .template-grid::-webkit-scrollbar {
+      display: none;
+    }
+    .template-card {
+      background: #1a1a1e;
+      border: 2px solid #2a2a30;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      aspect-ratio: 1/2;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    }
+    .template-card:active {
+      transform: scale(0.94);
+    }
+    .template-card.active {
+      border-color: #ff3b30;
+      box-shadow: 0 0 16px rgba(255, 59, 48, 0.5), 0 4px 14px rgba(0, 0, 0, 0.5);
+      transform: translateY(-2px);
+    }
+    .template-card.active::after {
+      content: '✓';
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: #ff3b30;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    }
+    .template-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #0c0d11;
+      display: block;
+      padding: 3px;
+    }
+
+    /* ── Action Container ──────────────────────────────────── */
+    .action-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 0.5rem;
+      width: 100%;
+      gap: 0.4rem;
+    }
+    #action-btn {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ff4b45, #d32f2f);
+      border: 4px solid rgba(255, 255, 255, 0.2);
+      outline: none;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(211, 47, 47, 0.45), inset 0 2px 6px rgba(255, 255, 255, 0.35);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: transform 0.12s ease, background 0.2s ease, box-shadow 0.2s ease;
+    }
+    #action-btn:active {
+      transform: scale(0.95);
+      box-shadow: 0 4px 14px rgba(211, 47, 47, 0.35), inset 0 3px 8px rgba(0, 0, 0, 0.4);
+    }
+    #action-btn.capturing {
+      transform: scale(0.92);
+      filter: brightness(1.25);
+      box-shadow: 0 0 40px rgba(255, 59, 48, 0.85);
+    }
+    #action-btn:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .status-msg {
+      font-size: 13px;
+      font-weight: 600;
+      color: #cbd5e1;
+      min-height: 1.2rem;
+      margin-top: 0.2rem;
+      transition: color 0.2s ease;
+    }
+    .status-msg.success { color: #2ecc71; }
+    .status-msg.error { color: #f87171; }
+    .status-msg.busy { color: #fbbf24; }
+
+    .footer-text {
+      font-size: 11px;
+      color: #666677;
+      letter-spacing: 0.3px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Wordmark Header -->
+  <div class="header">
+    <div class="wordmark">BORDER<span>-</span>LENS</div>
+    <div id="connBadge" class="status-badge">
+      <span class="status-dot"></span>
+      <span id="connText">Connected to Booth</span>
+    </div>
+  </div>
+
+  <!-- Main Template Selection Grid -->
+  <div class="main-wrap">
+    <div class="section-title">Select Template</div>
+    <div id="template-container" class="template-grid">
+      <div style="color: #666; font-size: 12px; grid-column: span 3; padding: 1.5rem 0;">Loading templates…</div>
+    </div>
+  </div>
+
+  <!-- Dynamic Action Button (Select & Start / Take Photo) -->
+  <div class="action-container">
+    <button id="action-btn" type="button" onclick="handleMainAction()" aria-label="Action Button">
+      <span id="btn-icon" style="font-size: 26px; line-height: 1;">✦</span>
+      <span id="btn-title" style="font-size: 17px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase;">SELECT &amp; START</span>
+      <span id="btn-sub" style="font-size: 10.5px; opacity: 0.85; letter-spacing: 0.8px; font-weight: 600;">TAP TO PROCEED</span>
+    </button>
+    <div id="statusMsg" class="status-msg">Choose a template, then proceed</div>
+    <div class="footer-text">Wi-Fi Remote Shutter &amp; Template Controller</div>
+  </div>
+
+  <script>
+    let selectedTemplateId = null;
+    let currentMode = 'select'; // 'select' | 'capture'
+    let isBusy = false;
+
+    const actionBtn = document.getElementById('action-btn');
+    const btnIcon = document.getElementById('btn-icon');
+    const btnTitle = document.getElementById('btn-title');
+    const btnSub = document.getElementById('btn-sub');
+    const statusMsg = document.getElementById('statusMsg');
+    const connBadge = document.getElementById('connBadge');
+    const connText = document.getElementById('connText');
+    const templateContainer = document.getElementById('template-container');
+
+    function updateButtonUI(mode) {
+      currentMode = mode;
+      if (mode === 'capture') {
+        btnIcon.innerText = '📸';
+        btnTitle.innerText = 'TAKE PHOTO';
+        btnSub.innerText = 'TAP TO SHUTTER';
+      } else {
+        btnIcon.innerText = '✦';
+        btnTitle.innerText = 'SELECT & START';
+        btnSub.innerText = 'TAP TO PROCEED';
+      }
+    }
+
+    // ── Load Templates ──────────────────────────────────────────
+    async function loadTemplates() {
+      try {
+        const res = await fetch('/api/templates', { cache: 'no-store' });
+        if (!res.ok) throw new Error('Failed to load templates');
+        const templates = await res.json();
+        
+        if (!Array.isArray(templates) || templates.length === 0) {
+          templateContainer.innerHTML = '<div style="color: #666; font-size: 12px; grid-column: span 3; padding: 1.5rem 0;">No templates available</div>';
+          return;
+        }
+
+        const activeTpl = templates.find(t => t.isSelected);
+        if (activeTpl && !selectedTemplateId) {
+          selectedTemplateId = activeTpl.id;
+        }
+
+        templateContainer.innerHTML = templates.map(t => {
+          const isActive = (selectedTemplateId ? t.id === selectedTemplateId : t.isSelected);
+          return `
+            <div class="template-card ${isActive ? 'active' : ''}" onclick="selectTemplate('${t.id}', '${encodeURIComponent(t.name)}')" id="tmpl-${t.id}">
+              <img src="${t.thumbnail}" alt="${t.name}" loading="lazy" onerror="this.style.opacity=0.3">
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error('Failed to load templates', e);
+      }
+    }
+
+    // ── Select Template ─────────────────────────────────────────
+    async function selectTemplate(id, rawName) {
+      selectedTemplateId = id;
+      const name = decodeURIComponent(rawName || '');
+
+      if (navigator.vibrate) {
+        try { navigator.vibrate(30); } catch (e) {}
+      }
+
+      document.querySelectorAll('.template-card').forEach(c => c.classList.remove('active'));
+      document.getElementById(`tmpl-${id}`)?.classList.add('active');
+
+      statusMsg.innerText = `Selected: ${name || 'Template'}`;
+      statusMsg.className = 'status-msg success';
+
+      try {
+        await fetch('/api/select-template', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ templateId: id })
+        });
+      } catch (e) {
+        console.error('Failed to select template', e);
+      }
+    }
+
+    // ── Handle Main Action Button ───────────────────────────────
+    async function handleMainAction() {
+      if (isBusy) return;
+
+      if (navigator.vibrate) {
+        try { navigator.vibrate(50); } catch (e) {}
+      }
+
+      if (currentMode === 'select') {
+        // Proceed from Template Selection to Camera View
+        isBusy = true;
+        statusMsg.innerText = '⚡ Proceeding to Camera View…';
+        statusMsg.className = 'status-msg busy';
+        
+        try {
+          const res = await fetch('/api/proceed-to-camera', { method: 'POST' });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.success) {
+            updateButtonUI('capture');
+            statusMsg.innerText = '📷 Camera ready! Tap Take Photo';
+            statusMsg.className = 'status-msg success';
+          } else {
+            statusMsg.innerText = 'Could not advance booth to camera';
+            statusMsg.className = 'status-msg error';
+          }
+        } catch (e) {
+          statusMsg.innerText = '⚠️ Network error advancing booth';
+          statusMsg.className = 'status-msg error';
+        } finally {
+          setTimeout(() => { isBusy = false; }, 600);
+        }
+      } else {
+        // Trigger Shutter / Capture
+        isBusy = true;
+        actionBtn.classList.add('capturing');
+        statusMsg.innerText = '⚡ Trigger sent! Starting countdown…';
+        statusMsg.className = 'status-msg busy';
+        btnSub.innerText = 'WAITING…';
+
+        try {
+          const res = await fetch('/api/trigger-shutter', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ timestamp: Date.now() })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.success) {
+            statusMsg.innerText = '📸 Countdown started on booth!';
+            statusMsg.className = 'status-msg success';
+            if (navigator.vibrate) {
+              try { navigator.vibrate([40, 60, 40]); } catch (e) {}
+            }
+          } else {
+            statusMsg.innerText = data.error || 'Booth window busy or not ready';
+            statusMsg.className = 'status-msg error';
+          }
+        } catch (e) {
+          statusMsg.innerText = '⚠️ Could not trigger booth shutter';
+          statusMsg.className = 'status-msg error';
+        } finally {
+          setTimeout(() => {
+            actionBtn.classList.remove('capturing');
+          }, 300);
+
+          // 2.5s cooldown to prevent double taps during countdown
+          setTimeout(() => {
+            isBusy = false;
+            statusMsg.innerText = 'Ready to capture';
+            statusMsg.className = 'status-msg';
+            btnSub.innerText = 'TAP TO SHUTTER';
+          }, 2500);
+        }
+      }
+    }
+
+    // ── Connection & Status Keepalive ───────────────────────────
+    async function checkStatus() {
+      try {
+        const res = await fetch('/api/booth-status', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          connBadge.className = 'status-badge';
+          connText.innerText = 'Connected to Booth';
+          
+          if (data.mode && !isBusy) {
+            updateButtonUI(data.mode);
+          }
+          if (data.selectedTemplateId && data.selectedTemplateId !== selectedTemplateId) {
+            selectedTemplateId = data.selectedTemplateId;
+            document.querySelectorAll('.template-card').forEach(c => c.classList.remove('active'));
+            document.getElementById(`tmpl-${selectedTemplateId}`)?.classList.add('active');
+          }
+        } else {
+          throw new Error();
+        }
+      } catch (err) {
+        connBadge.className = 'status-badge disconnected';
+        connText.innerText = 'Offline / Connecting…';
+      }
+    }
+
+    loadTemplates();
+    setInterval(loadTemplates, 6000);
+    setInterval(checkStatus, 3500);
+    checkStatus();
+  </script>
+</body>
+</html>
