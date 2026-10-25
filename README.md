@@ -72,7 +72,7 @@ Traditional photobooth software often relies on expensive monthly subscriptions,
 | **Operating System** | Windows 10 (64-bit) | Windows 11 (64-bit) |
 | **Processor** | Intel Core i3 / AMD Ryzen 3 (4-core) | Intel Core i5 / AMD Ryzen 5 or better |
 | **Memory (RAM)** | 8 GB RAM | 16 GB RAM |
-| **Storage** | 5 GB free disk space (SSD recommended) | Fast NVMe SSD + Dedicated Secondary Drive (`D:\`) |
+| **Storage** | 5 GB free disk space | 20+ GB SSD space (Works on `C:\` or any drive) |
 | **Display** | 1280 × 720 resolution | 1920 × 1080 Full HD touchscreen |
 
 ### Supported Hardware
@@ -127,7 +127,7 @@ Ideal for running from an external USB drive or on computers with restricted adm
 ---
 
 ### 🔄 Updating or Reinstalling
-- To update to a newer version, simply run the new `BorderLens-x.x.x Setup.exe`. It will safely upgrade the software without touching your saved photos, raw captures, or custom templates stored in `D:\photobooth_output\`.
+- To update to a newer version, simply run the new `BorderLens-x.x.x Setup.exe`. It will safely upgrade the software without touching your saved photos, raw captures, or custom templates stored in your output folder.
 
 ### 🗑️ Uninstallation
 - To remove BorderLens, go to Windows **Settings** > **Apps** > **Installed apps**, locate **BorderLens**, and click **Uninstall**.
@@ -145,12 +145,11 @@ Once BorderLens is installed, follow these simple steps to start operating:
    - Open the application. The system will start maximized and show the template selection canvas.
 3. **Verify Settings (Gear Icon)**:
    - Click the **Settings** gear icon in the top right to verify your camera selection, output directory, and printer.
-4. **Storage Directory**:
-   - All high-resolution strips, raw captures, and boomerang GIFs are automatically saved to:
-     ```text
-     D:\photobooth_output\
-     ```
-     *(If drive `D:` is not detected, it automatically saves to your Windows `Pictures\photobooth_output\` folder).*
+4. **Storage Directory (No `D:\` drive required)**:
+   - All high-resolution strips, raw captures, and boomerang GIFs are automatically saved to your PC:
+     - **If a `D:\` drive is present**: Defaults to `D:\photobooth_output\`.
+     - **On single-drive computers (`C:\` only)**: Automatically defaults to your user folder at `Pictures\photobooth_output\`.
+     - You can also choose any custom folder or external USB drive anytime from **Operator Settings**.
 
 ---
 
@@ -249,7 +248,7 @@ Follow this quick pre-event checklist to ensure smooth booth operations:
 - [ ] **Camera Connected**: 
   - If using a **Webcam**: Confirm it appears in **Settings** > **Camera**.
   - If using a **DSLR**: Launch digiCamControl, verify camera connection, and set Mode to `DSLR` in BorderLens.
-- [ ] **Output Folder**: Verify free disk space on `D:\` (or configure alternate directory in Settings).
+- [ ] **Output Folder**: Verify free disk space (defaults to `Pictures\photobooth_output` on `C:\` or `D:\` if available; customizable in Settings).
 - [ ] **Test Session**: Run one full test cycle (Template Selection ➔ 3 Shots ➔ Result Screen ➔ Test Print ➔ Scan QR Code).
 - [ ] **Remote Shutter**: Connect attendant phone to local Wi-Fi and verify `/remote` connectivity.
 

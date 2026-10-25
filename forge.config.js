@@ -1,3 +1,5 @@
+const path = require('path');
+const fs = require('fs-extra');
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 
@@ -5,11 +7,33 @@ module.exports = {
   packagerConfig: {
     icon: './assets/icon.ico',
     asar: {
-      unpack: '**/{sharp,@img}/**/*',
+      unpack: '**/node_modules/{sharp,@img}/**/*',
     },
     extraResource: [
       './public',
     ],
+  },
+  hooks: {
+    packageAfterCopy: async (forgeConfig, buildPath) => {
+      const modulesToCopy = ['sharp', '@img', 'detect-libc', 'semver'];
+      for (const mod of modulesToCopy) {
+        const src = path.resolve(__dirname, 'node_modules', mod);
+        const dest = path.resolve(buildPath, 'node_modules', mod);
+        if (await fs.pathExists(src)) {
+          await fs.copy(src, dest, { dereference: true });
+        }
+      }
+    },
+    packageAfterPrune: async (forgeConfig, buildPath) => {
+      const modulesToCopy = ['sharp', '@img', 'detect-libc', 'semver'];
+      for (const mod of modulesToCopy) {
+        const src = path.resolve(__dirname, 'node_modules', mod);
+        const dest = path.resolve(buildPath, 'node_modules', mod);
+        if (await fs.pathExists(src)) {
+          await fs.copy(src, dest, { dereference: true });
+        }
+      }
+    },
   },
   rebuildConfig: {},
   makers: [
@@ -65,7 +89,7 @@ module.exports = {
       [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
       [FuseV1Options.EnableNodeCliInspectArguments]: false,
       [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
-      [FuseV1Options.OnlyLoadAppFromAsar]: true,
+      [FuseV1Options.OnlyLoadAppFromAsar]: false,
     }),
   ],
 };

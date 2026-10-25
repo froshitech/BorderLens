@@ -900,16 +900,24 @@ const createWindow = () => {
     },
   });
 
-  // Allow the renderer to load images from localhost Express server
+  // Allow the renderer to load images and connect to localhost servers
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': [
-          "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: http://localhost:3001 https:;"
-        ],
-      },
-    });
+    if (details.resourceType === 'mainFrame') {
+      const responseHeaders = { ...details.responseHeaders };
+      responseHeaders['Content-Security-Policy'] = [
+        "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http://localhost:* ws://localhost:* https:;"
+      ];
+      return callback({ responseHeaders });
+    }
+    callback({ responseHeaders: details.responseHeaders });
+  });
+
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    console.log(`[renderer console] [${level}] ${message} (${sourceId}:${line})`);
+  });
+
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error(`[renderer fail-load] ${errorCode}: ${errorDescription} (${validatedURL})`);
   });
 
   mainWindow.once('ready-to-show', () => {
@@ -918,7 +926,7 @@ const createWindow = () => {
   });
 
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
-  // mainWindow.webContents.openDevTools(); // uncomment for debugging
+  // mainWindow.webContents.openDevTools(); // uncomment if debugging is needed
 };
 
 // ─── IPC Handlers ─────────────────────────────────────────────────────────────
