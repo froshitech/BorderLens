@@ -101,3 +101,27 @@ export function applyTheme(theme, customAccent) {
     document.documentElement.style.setProperty('--accent-soft', `${customAccent}1F`);
   }
 }
+
+export function stopAllMediaStreams() {
+  if (typeof document === 'undefined') return;
+  try {
+    const videos = document.querySelectorAll('video');
+    videos.forEach((video) => {
+      try {
+        if (video.srcObject && typeof video.srcObject.getTracks === 'function') {
+          video.srcObject.getTracks().forEach((track) => {
+            try {
+              track.stop();
+            } catch (_) {}
+          });
+        }
+        video.srcObject = null;
+        video.pause?.();
+      } catch (err) {
+        console.warn('Error stopping video stream:', err);
+      }
+    });
+  } catch (err) {
+    console.warn('stopAllMediaStreams error:', err);
+  }
+}

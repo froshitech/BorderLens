@@ -216,13 +216,12 @@ server.get('/share/:sessionId', (req, res) => {
   try { files = fs.readdirSync(OUTPUT_DIR); } catch { return res.status(500).send('Server error'); }
 
   const stripFile = `strip_${sessionId}.jpg`;
-  const stripExists = fs.existsSync(path.join(OUTPUT_DIR, stripFile));
+  const stripPath = path.join(OUTPUT_DIR, stripFile);
+  const stripExists = fs.existsSync(stripPath);
   const loopFile = `loop_${sessionId}.gif`;
   const loopExists = fs.existsSync(path.join(OUTPUT_DIR, loopFile));
 
-  const rawFiles = files
-    .filter(f => (f.startsWith('raw_dslr_') || f.startsWith('raw_webcam_')) && f.includes(sessionId) && f.endsWith('.jpg'))
-    .sort();
+  const rawFiles = getRawFilesForSession(sessionId, stripPath);
 
   if (!stripExists && rawFiles.length === 0) return res.status(404).send('Session not found');
 
@@ -449,12 +448,71 @@ function buildCloudViewerUrl({ stripUrl, rawUrls, boomerangUrl }) {
   return `${viewer}${separator}strip=${encodeURIComponent(stripUrl)}&raws=${encodeURIComponent(JSON.stringify(rawUrls))}&gif=${encodeURIComponent(boomerangUrl || '')}`;
 }
 
-function hasCloudAssetCache(session) {
-  return Boolean(
-    session?.stripUrl &&
-    Array.isArray(session.rawUrls) &&
-    Object.prototype.hasOwnProperty.call(session, 'boomerangUrl')
-  );
+function getRawFilesForSession(sessionId, stripPath = null) {
+  if (!OUTPUT_DIR || !fs.existsSync(OUTPUT_DIR)) return [];
+  let files;
+  try { files = fs.readdirSync(OUTPUT_DIR); } catch { return []; }
+
+  // Strategy 1: exact session ID match in filename
+  const matching = files
+    .filter(f => /^raw_(dslr|webcam)_/.test(f) && f.includes(sessionId) && f.endsWith('.jpg'))
+    .sort();
+  if (matching.length > 0) return matching;
+
+  // Strategy 2: Proximity match relative to strip mtime
+  const targetStripPath = stripPath || path.join(OUTPUT_DIR, `strip_${sessionId}.jpg`);
+  if (!fs.existsSync(targetStripPath)) return [];
+  const stripTime = fs.statSync(targetStripPath).mtimeMs;
+
+  const candidateRaws = files
+    .filter(f => /^raw_(dslr|webcam)_/.test(f) && f.endsWith('.jpg'))
+    .map(f => {
+      try {
+        const stat = fs.statSync(path.join(OUTPUT_DIR, f));
+        return { filename: f, mtime: stat.mtimeMs };
+      } catch {
+        return null;
+      }
+    })
+    .filter(item => item && item.mtime <= stripTime + 2000 && item.mtime >= stripTime - 300_000);
+
+  if (candidateRaws.length === 0) return [];
+
+  // Group candidate raws by their session timestamp embedded in filename
+  const groups = {};
+  for (const item of candidateRaws) {
+    const m = item.filename.match(/^raw_(?:dslr|webcam)_(.+?)_\d+\.jpg$/);
+    const key = m ? m[1] : item.filename;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(item);
+  }
+
+  let bestGroup = null;
+  let minDiff = Infinity;
+  for (const group of Object.values(groups)) {
+    const maxMtime = Math.max(...group.map(g => g.mtime));
+    const diff = stripTime - maxMtime;
+    if (diff >= -2000 && diff < minDiff) {
+      minDiff = diff;
+      bestGroup = group;
+    }
+  }
+
+  if (bestGroup && bestGroup.length > 0) {
+    return bestGroup.map(g => g.filename).sort();
+  }
+
+  return candidateRaws
+    .filter(item => item.mtime <= stripTime + 2000 && item.mtime >= stripTime - 60_000)
+    .map(item => item.filename)
+    .sort();
+}
+
+function hasCloudAssetCache(session, expectedRawCount = 0) {
+  if (!session || !session.stripUrl || !Array.isArray(session.rawUrls)) return false;
+  if (!Object.prototype.hasOwnProperty.call(session, 'boomerangUrl')) return false;
+  if (expectedRawCount > 0 && session.rawUrls.length === 0) return false;
+  return true;
 }
 
 function getCloudinaryClient() {
@@ -923,42 +981,59 @@ app.whenReady().then(() => {
     if (typeof sessionId !== 'string' || !sessionId.trim() || path.basename(sessionId) !== sessionId) {
       throw new Error('Invalid session ID.');
     }
+    const stripFile = `strip_${sessionId}.jpg`;
+    const stripPath = path.join(OUTPUT_DIR, stripFile);
+    if (!fs.existsSync(stripPath)) throw new Error('Final strip not found for this session.');
+
+    const rawFiles = getRawFilesForSession(sessionId, stripPath);
+
     const cachedSession = getCloudSessions()[sessionId];
-    if (hasCloudAssetCache(cachedSession)) {
+    if (hasCloudAssetCache(cachedSession, rawFiles.length)) {
       const cloudShareUrl = buildCloudViewerUrl(cachedSession);
       if (cachedSession.cloudShareUrl !== cloudShareUrl) {
         saveCloudSession(sessionId, { ...cachedSession, cloudShareUrl });
       }
-      return { ...cachedSession, cached: true };
+      return { ...cachedSession, cloudShareUrl, cached: true };
     }
 
-    const files = fs.readdirSync(OUTPUT_DIR);
-    const stripFile = `strip_${sessionId}.jpg`;
-    const stripPath = path.join(OUTPUT_DIR, stripFile);
-    if (!fs.existsSync(stripPath)) throw new Error('Final strip not found for this session.');
-    const rawFiles = files
-      .filter(file => /^raw_(dslr|webcam)_/.test(file) && file.includes(sessionId) && file.endsWith('.jpg'))
-      .sort();
     const loopFile = `loop_${sessionId}.gif`;
-    const uploadResult = await uploadCloudResource(stripPath, sessionId);
-    const additionalFiles = [...rawFiles, ...(fs.existsSync(path.join(OUTPUT_DIR, loopFile)) ? [loopFile] : [])];
+    const loopPath = path.join(OUTPUT_DIR, loopFile);
+
+    let stripUrl = cachedSession?.stripUrl;
+    if (!stripUrl) {
+      const uploadResult = await uploadCloudResource(stripPath, sessionId);
+      stripUrl = uploadResult.secure_url;
+    }
+
+    let boomerangUrl = cachedSession?.boomerangUrl || null;
+    const needLoopUpload = fs.existsSync(loopPath) && !boomerangUrl;
+
+    const filesToUpload = [
+      ...rawFiles,
+      ...(needLoopUpload ? [loopFile] : [])
+    ];
+
     const secondaryResults = await Promise.allSettled(
-      additionalFiles.map(file => uploadCloudResource(path.join(OUTPUT_DIR, file), sessionId))
+      filesToUpload.map(file => uploadCloudResource(path.join(OUTPUT_DIR, file), sessionId))
     );
+
     const rawUrls = secondaryResults
       .slice(0, rawFiles.length)
       .filter(result => result.status === 'fulfilled')
       .map(result => result.value.secure_url);
-    const loopResult = secondaryResults[rawFiles.length];
-    const loopUrl = loopResult?.status === 'fulfilled' ? loopResult.value.secure_url : null;
+
+    if (needLoopUpload) {
+      const loopResult = secondaryResults[rawFiles.length];
+      boomerangUrl = loopResult?.status === 'fulfilled' ? loopResult.value.secure_url : null;
+    }
+
     secondaryResults.forEach((result, index) => {
       if (result.status === 'rejected') {
-        const details = logCloudError(`optional upload ${additionalFiles[index]}`, result.reason);
-        console.warn(`[cloud] Optional upload skipped for ${additionalFiles[index]}: ${details.message}`);
+        const details = logCloudError(`optional upload ${filesToUpload[index]}`, result.reason);
+        console.warn(`[cloud] Optional upload skipped for ${filesToUpload[index]}: ${details.message}`);
       }
     });
-    const stripUrl = uploadResult.secure_url;
-    const boomerangUrl = loopUrl;
+
     const cloudShareUrl = buildCloudViewerUrl({ stripUrl, rawUrls, boomerangUrl });
     const cloudSession = { cloudShareUrl, stripUrl, rawUrls, boomerangUrl };
     saveCloudSession(sessionId, cloudSession);
@@ -1091,8 +1166,13 @@ app.whenReady().then(() => {
   });
 
   // ── process-strip: composite + thumbnail ────────────────────────────────────
-  ipcMain.handle('process-strip', async (event, rawFilepaths, templatePath, filterType = 'normal', orientation = null, customSlots = null, fitMode = 'cover') => {
-    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  ipcMain.handle('process-strip', async (event, rawFilepaths, templatePath, filterType = 'normal', orientation = null, customSlots = null, fitMode = 'cover', sessionTs = null) => {
+    let ts = (typeof sessionTs === 'string' && sessionTs.trim()) ? sessionTs.trim() : null;
+    if (!ts && rawFilepaths && rawFilepaths.length > 0) {
+      const m = path.basename(rawFilepaths[0]).match(/^raw_(?:dslr|webcam)_(.+?)_\d+\.jpg$/);
+      if (m) ts = m[1];
+    }
+    if (!ts) ts = new Date().toISOString().replace(/[:.]/g, '-');
     const finalFilename = `strip_${ts}.jpg`;
     const thumbFilename = `thumb_${ts}.jpg`;
     const finalFilepath = path.join(OUTPUT_DIR, finalFilename);
@@ -1193,29 +1273,20 @@ app.whenReady().then(() => {
     const files = fs.readdirSync(OUTPUT_DIR);
     const stripFiles = files.filter(f => /^strip_.*\.jpg$/.test(f));
 
-    // All raw files with their mtime for proximity matching
-    const allRaws = files
-      .filter(f => /^raw_(dslr|webcam)_/.test(f) && f.endsWith('.jpg'))
-      .map(f => {
-        const stat = fs.statSync(path.join(OUTPUT_DIR, f));
-        return { filename: f, mtime: stat.mtime.getTime() };
-      });
-
     return stripFiles.map(stripFile => {
       const ts        = stripFile.replace(/^strip_/, '').replace(/\.jpg$/, '');
-      const stripStat = fs.statSync(path.join(OUTPUT_DIR, stripFile));
-      const stripTime = stripStat.mtime.getTime();
+      const stripPath = path.join(OUTPUT_DIR, stripFile);
+      const stripStat = fs.statSync(stripPath);
 
-      // Strategy 1: new naming — raw file contains the session timestamp
-      let rawFiles = allRaws.filter(r => r.filename.includes(ts));
-
-      // Strategy 2: old naming (no _index suffix) — match raws created within
-      // 60 seconds before the strip was written
-      if (rawFiles.length === 0) {
-        rawFiles = allRaws.filter(r =>
-          r.mtime <= stripTime && r.mtime >= stripTime - 60_000
-        );
-      }
+      const rawFileNames = getRawFilesForSession(ts, stripPath);
+      const rawFiles = rawFileNames.map(f => {
+        try {
+          const stat = fs.statSync(path.join(OUTPUT_DIR, f));
+          return { filename: f, mtime: stat.mtimeMs };
+        } catch {
+          return { filename: f, mtime: 0 };
+        }
+      });
 
       const ip        = getLocalIPv4Address();
       const thumbFile = `thumb_${ts}.jpg`;
@@ -1223,6 +1294,7 @@ app.whenReady().then(() => {
       const loopFile = `loop_${ts}.gif`;
       const loopExists = fs.existsSync(path.join(OUTPUT_DIR, loopFile));
 
+      const cachedSession = getCloudSessions()[ts];
       return {
         id:            ts,
         date:          stripStat.mtime.toISOString(),
@@ -1233,12 +1305,14 @@ app.whenReady().then(() => {
         stripUrl:      `http://localhost:${PORT}/photos/${stripFile}`,
         loopUrl:       loopExists ? `http://localhost:${PORT}/photos/${loopFile}` : null,
         shareUrl:      `http://${ip}:${PORT}/share/${ts}`,
-        cloudShareUrl: getCloudSessions()[ts]?.cloudShareUrl || null,
-        cloudAssets: getCloudSessions()[ts] && hasCloudAssetCache(getCloudSessions()[ts])
+        cloudShareUrl: (cachedSession && cachedSession.stripUrl)
+                         ? buildCloudViewerUrl(cachedSession)
+                         : (cachedSession?.cloudShareUrl || null),
+        cloudAssets: cachedSession && hasCloudAssetCache(cachedSession, rawFiles.length)
           ? {
-            stripUrl: getCloudSessions()[ts].stripUrl,
-            rawUrls: getCloudSessions()[ts].rawUrls,
-            boomerangUrl: getCloudSessions()[ts].boomerangUrl,
+            stripUrl: cachedSession.stripUrl,
+            rawUrls: cachedSession.rawUrls,
+            boomerangUrl: cachedSession.boomerangUrl,
           }
           : null,
         rawShots: rawFiles.sort((a, b) => a.mtime - b.mtime).map(r => ({
@@ -1255,23 +1329,24 @@ app.whenReady().then(() => {
     }
 
     const files = fs.readdirSync(OUTPUT_DIR);
-    const deletedFiles = [];
-    const matchingFiles = new Set(files.filter(filename => filename.includes(sessionId)));
     const stripFilename = `strip_${sessionId}.jpg`;
     const stripPath = path.join(OUTPUT_DIR, stripFilename);
-    if (fs.existsSync(stripPath)) {
-      const stripTime = fs.statSync(stripPath).mtimeMs;
-      for (const filename of files) {
-        if (!/^raw_(dslr|webcam)_/.test(filename) || !filename.endsWith('.jpg')) continue;
-        const filePath = path.join(OUTPUT_DIR, filename);
-        const mtime = fs.statSync(filePath).mtimeMs;
-        if (mtime <= stripTime && mtime >= stripTime - 60_000) matchingFiles.add(filename);
-      }
-    }
+    const rawFiles = getRawFilesForSession(sessionId, stripPath);
+    const thumbFilename = `thumb_${sessionId}.jpg`;
+    const loopFilename = `loop_${sessionId}.gif`;
 
+    const matchingFiles = new Set([
+      stripFilename,
+      thumbFilename,
+      loopFilename,
+      ...rawFiles,
+      ...files.filter(filename => filename.includes(sessionId))
+    ]);
+
+    const deletedFiles = [];
     for (const filename of matchingFiles) {
       const filePath = path.join(OUTPUT_DIR, filename);
-      if (!fs.statSync(filePath).isFile()) continue;
+      if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) continue;
       fs.unlinkSync(filePath);
       deletedFiles.push(filename);
     }

@@ -15,8 +15,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ── Strip compositing ──────────────────────────────────────────────────────
   // filterType: 'normal' | 'bw' | 'bright' | 'vintage'
-  processStrip: (rawFilepaths, templatePath, filterType, orientation, slots, fitMode) =>
-    ipcRenderer.invoke('process-strip', rawFilepaths, templatePath, filterType, orientation, slots, fitMode),
+  processStrip: (rawFilepaths, templatePath, filterType, orientation, slots, fitMode, sessionTs) =>
+    ipcRenderer.invoke('process-strip', rawFilepaths, templatePath, filterType, orientation, slots, fitMode, sessionTs),
 
   // ── Printing ──────────────────────────────────────────────────────────────
   // { stripFilename: string, copies: number }

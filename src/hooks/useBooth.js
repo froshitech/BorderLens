@@ -1,6 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import THEMES from '../themes.js';
-import { FILTERS, STEP_LABELS, PAUSE_BETWEEN_SHOTS_MS, FLASH_DURATION_MS, AUTO_PROCEED_SEC, LS_CUSTOM_TEMPLATES, LS_LAST_TEMPLATE, LS_MODE, LS_SELECTED_DEVICE, LS_MIRROR, LS_SHOT_OVERRIDE, LS_COUNTDOWN_DURATION, LS_FLASH_ENABLED, LS_THEME, LS_CUSTOM_ACCENT, makeSessionTs, lsGet, lsSet, normalizeCustomTemplates, formatDate, applyTheme } from '../utils/helpers.js';
+import {
+  FILTERS, STEP_LABELS, PAUSE_BETWEEN_SHOTS_MS, FLASH_DURATION_MS, AUTO_PROCEED_SEC,
+  LS_CUSTOM_TEMPLATES, LS_LAST_TEMPLATE, LS_MODE, LS_SELECTED_DEVICE, LS_MIRROR,
+  LS_SHOT_OVERRIDE, LS_COUNTDOWN_DURATION, LS_FLASH_ENABLED, LS_THEME, LS_CUSTOM_ACCENT,
+  makeSessionTs, lsGet, lsSet, normalizeCustomTemplates, formatDate, applyTheme,
+  stopAllMediaStreams,
+} from '../utils/helpers.js';
 
 export default function useBooth() {
   const [step, setStep] = useState('TEMPLATE_SELECTION');
@@ -77,7 +83,9 @@ export default function useBooth() {
   // ── Refs ─────────────────────────────────────────────────────────────────────
   const videoRef          = useRef(null);
   const streamRef         = useRef(null);
+  const activeStreamRef   = useRef(null);
   const countdownTimerRef = useRef(null);
+  const pauseTimeoutRef   = useRef(null);
   const autoProceedRef    = useRef(null);
   const captureSequenceRef = useRef(0);
   const retakeStartedRef = useRef(null);
@@ -144,17 +152,113 @@ export default function useBooth() {
   }, [selectedTemplate, shotOverride]);
 
   // ─── Webcam lifecycle ─────────────────────────────────────────────────────────
-  useEffect(() => {
-    const needsCam =
-      (step === 'LIVE_VIEW' || step === 'SETTINGS' || (step === 'REVIEW_SHOTS' && retakingIdx !== null))
-      && mode === 'webcam';
-    if (needsCam) enumerateAndStart();
-    else stopWebcam();
-    return () => stopWebcam();
-  }, [mode, step, retakingIdx]);
+  const isCaptureViewActive = (step === 'LIVE_VIEW' || (step === 'REVIEW_SHOTS' && retakingIdx !== null));
+
+  const stopWebcam = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => {
+        try { t.stop(); } catch (_) {}
+      });
+      streamRef.current = null;
+    }
+    if (activeStreamRef.current) {
+      activeStreamRef.current.getTracks().forEach(t => {
+        try { t.stop(); } catch (_) {}
+      });
+      activeStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      try {
+        videoRef.current.pause?.();
+        videoRef.current.srcObject = null;
+      } catch (_) {}
+    }
+    stopAllMediaStreams();
+    setIsStreamReady(false);
+  }, []);
 
   useEffect(() => {
-    if (step !== 'LIVE_VIEW' && step !== 'REVIEW_SHOTS') clearCountdown();
+    let activeStream = null;
+    let isCurrentEffect = true;
+
+    async function startCamera() {
+      try {
+        const all = await navigator.mediaDevices.enumerateDevices();
+        if (!isCurrentEffect) return;
+        const vids = all.filter(d => d.kind === 'videoinput');
+        setDevices(vids);
+        const savedDevice = selectedDeviceId && vids.find(d => d.deviceId === selectedDeviceId);
+        const deviceId = savedDevice?.deviceId || vids[0]?.deviceId || '';
+        if (deviceId !== selectedDeviceId) setSelectedDeviceId(deviceId);
+
+        const constraints = { video: deviceId ? { deviceId: { exact: deviceId } } : true, audio: false };
+        activeStream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (!isCurrentEffect) {
+          activeStream.getTracks().forEach(track => {
+            try { track.stop(); } catch (_) {}
+          });
+          return;
+        }
+
+        activeStreamRef.current = activeStream;
+        streamRef.current = activeStream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = activeStream;
+          videoRef.current.play?.().catch(() => {});
+        }
+        setIsStreamReady(true);
+      } catch (err) {
+        if (isCurrentEffect) {
+          setError('Camera access error: ' + err.message);
+          setIsStreamReady(false);
+        }
+      }
+    }
+
+    if (isCaptureViewActive && mode === 'webcam') {
+      startCamera();
+    } else {
+      stopWebcam();
+    }
+
+    return () => {
+      isCurrentEffect = false;
+      if (activeStream) {
+        activeStream.getTracks().forEach(track => {
+          try { track.stop(); } catch (_) {}
+        });
+      }
+      stopWebcam();
+    };
+  }, [isCaptureViewActive, mode, selectedDeviceId, stopWebcam]);
+
+  const switchDevice = async (deviceId) => {
+    setSelectedDeviceId(deviceId);
+    stopWebcam();
+  };
+
+  const clearCountdown = () => {
+    if (countdownTimerRef.current) {
+      clearTimeout(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    if (pauseTimeoutRef.current) {
+      clearTimeout(pauseTimeoutRef.current);
+      pauseTimeoutRef.current = null;
+    }
+    setCountdown(null);
+  };
+
+  useEffect(() => {
+    if (step !== 'LIVE_VIEW') {
+      captureSequenceRef.current += 1;
+      clearCountdown();
+      if (pauseTimeoutRef.current) {
+        clearTimeout(pauseTimeoutRef.current);
+        pauseTimeoutRef.current = null;
+      }
+      setIsCapturing(false);
+    }
     if (step !== 'REVIEW_SHOTS') clearAutoProceed();
   }, [step]);
 
@@ -162,8 +266,9 @@ export default function useBooth() {
     return () => {
       clearCountdown();
       clearAutoProceed();
+      stopWebcam();
     };
-  }, []);
+  }, [stopWebcam]);
 
   useEffect(() => {
     if (step === 'GALLERY' || step === 'SETTINGS' || step === 'TEMPLATE_SELECTION') {
@@ -171,42 +276,6 @@ export default function useBooth() {
       setActiveSession(null);
     }
   }, [step]);
-
-  const enumerateAndStart = async () => {
-    try {
-      const all  = await navigator.mediaDevices.enumerateDevices();
-      const vids = all.filter(d => d.kind === 'videoinput');
-      setDevices(vids);
-      const savedDevice = selectedDeviceId && vids.find(d => d.deviceId === selectedDeviceId);
-      const deviceId = savedDevice?.deviceId || vids[0]?.deviceId || '';
-      if (deviceId !== selectedDeviceId) setSelectedDeviceId(deviceId);
-      await startWebcam(deviceId);
-    } catch (err) { setError('Failed to access camera: ' + err.message); }
-  };
-
-  const startWebcam = async (deviceId) => {
-    try {
-      const constraints = { video: deviceId ? { deviceId: { exact: deviceId } } : true, audio: false };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      setIsStreamReady(true);
-    } catch (err) { setError('Failed to start webcam: ' + err.message); }
-  };
-
-  const stopWebcam = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-      setIsStreamReady(false);
-    }
-  };
-
-  const switchDevice = async (deviceId) => {
-    setSelectedDeviceId(deviceId);
-    stopWebcam();
-    await startWebcam(deviceId);
-  };
 
   // ─── Countdown ───────────────────────────────────────────────────────────────
   const runCountdown = useCallback((onComplete) => {
@@ -230,11 +299,6 @@ export default function useBooth() {
       if (captureSequenceRef.current === sequence) doRetake(retakingIdx, sequence);
     });
   }, [step, retakingIdx, mode, isStreamReady, runCountdown]);
-
-  const clearCountdown = () => {
-    if (countdownTimerRef.current) { clearTimeout(countdownTimerRef.current); countdownTimerRef.current = null; }
-    setCountdown(null);
-  };
 
   // ─── Auto-proceed ─────────────────────────────────────────────────────────────
   const startAutoProceed = useCallback((onZero) => {
@@ -273,6 +337,7 @@ export default function useBooth() {
 
   // ─── Main capture flow ────────────────────────────────────────────────────────
   const handleTakePhoto = () => {
+    if (step !== 'LIVE_VIEW') return;
     if (isCapturing || countdown !== null || isProcessing) return;
     const sequence = captureSequenceRef.current + 1;
     captureSequenceRef.current = sequence;
@@ -292,14 +357,14 @@ export default function useBooth() {
 
     const doCapture = async (shotIdx) => {
       try {
-        if (captureSequenceRef.current !== sequence) return;
+        if (captureSequenceRef.current !== sequence || step !== 'LIVE_VIEW') return;
         let rawPath;
         if (currentMode === 'webcam') {
           rawPath = await window.electronAPI.captureWebcam(captureWebcamFrame(), ts, shotIdx);
         } else {
           rawPath = await window.electronAPI.captureDslr(ts, shotIdx);
         }
-        if (captureSequenceRef.current !== sequence) return;
+        if (captureSequenceRef.current !== sequence || step !== 'LIVE_VIEW') return;
         const rawFilename = rawPath.split(/[\\/]/).pop();
         const frameUrl    = `http://localhost:3001/photos/${rawFilename}`;
         collectedFrames.push({ path: rawPath, url: frameUrl });
@@ -312,8 +377,8 @@ export default function useBooth() {
         setCapturedCount(nextIdx);
         if (nextIdx < totalShots) {
           setCurrentShotIdx(nextIdx);
-          setTimeout(() => {
-            if (captureSequenceRef.current === sequence) {
+          pauseTimeoutRef.current = setTimeout(() => {
+            if (captureSequenceRef.current === sequence && step === 'LIVE_VIEW') {
               runCountdown(() => doCapture(nextIdx));
             }
           }, PAUSE_BETWEEN_SHOTS_MS);
@@ -323,7 +388,7 @@ export default function useBooth() {
           startAutoProceed(() => generateStrip([...collectedFrames], ts));
         }
       } catch (err) {
-        if (captureSequenceRef.current !== sequence) return;
+        if (captureSequenceRef.current !== sequence || step !== 'LIVE_VIEW') return;
         setError(err.message || 'Capture failed.');
         setIsCapturing(false);
       }
@@ -343,7 +408,8 @@ export default function useBooth() {
         activeFilter,
         selectedTemplate?.layoutMode || selectedTemplate?.orientation || null,
         selectedTemplate?.slots || null,
-        selectedTemplate?.fitMode || 'cover'
+        selectedTemplate?.fitMode || 'cover',
+        ts || sessionTs
       );
       setResultFilename(filename);
       setResultPhotoUrl(photoUrl);
@@ -370,13 +436,14 @@ export default function useBooth() {
 
   const doRetake = async (idx, sequence) => {
     try {
+      if (captureSequenceRef.current !== sequence || step !== 'LIVE_VIEW') return;
       let rawPath;
       if (mode === 'webcam') {
         rawPath = await window.electronAPI.captureSingleShot('webcam', captureWebcamFrame(), sessionTs, idx);
       } else {
         rawPath = await window.electronAPI.captureSingleShot('dslr', null, sessionTs, idx);
       }
-      if (captureSequenceRef.current !== sequence) return;
+      if (captureSequenceRef.current !== sequence || step !== 'LIVE_VIEW') return;
       const frameUrl = `http://localhost:3001/photos/${rawPath.split(/[\\/]/).pop()}?v=${Date.now()}`;
       if (flashEnabled) {
         setShowFlash(true);
@@ -392,6 +459,7 @@ export default function useBooth() {
       retakeStartedRef.current = null;
       setStep('REVIEW_SHOTS');
     } catch (err) {
+      if (captureSequenceRef.current !== sequence) return;
       setError(err.message || 'Retake failed.');
       setRetakingIdx(null);
       retakeStartedRef.current = null;
@@ -437,11 +505,21 @@ export default function useBooth() {
   };
 
   const handleNewSession = () => {
+    captureSequenceRef.current += 1;
+    clearCountdown();
     clearAutoProceed();
-    setResultFilename(null); setResultPhotoUrl(null); setResultShareUrl(null);
+    setIsCapturing(false);
+    stopWebcam();
+    setResultFilename(null);
+    setResultPhotoUrl(null);
+    setResultShareUrl(null);
     setResultLoopUrl(null);
-    setRawFrames([]); setRetakingIdx(null); setSessionTs(null);
-    setError(null); setCapturedCount(0); setCurrentShotIdx(0);
+    setRawFrames([]);
+    setRetakingIdx(null);
+    setSessionTs(null);
+    setError(null);
+    setCapturedCount(0);
+    setCurrentShotIdx(0);
     setActiveFilter('normal');
     setStep('TEMPLATE_SELECTION');
   };
@@ -449,11 +527,16 @@ export default function useBooth() {
   const handleBackToTemplates = () => {
     captureSequenceRef.current += 1;
     retakeStartedRef.current = null;
-    clearCountdown(); clearAutoProceed();
+    clearCountdown();
+    clearAutoProceed();
     setIsCapturing(false);
     setRetakingIdx(null);
-    setStep('TEMPLATE_SELECTION'); setSelectedTemplate(null);
-    setError(null); setCapturedCount(0); setCurrentShotIdx(0);
+    stopWebcam();
+    setStep('TEMPLATE_SELECTION');
+    setSelectedTemplate(null);
+    setError(null);
+    setCapturedCount(0);
+    setCurrentShotIdx(0);
     lsSet(LS_LAST_TEMPLATE, null);
   };
 
@@ -608,7 +691,14 @@ export default function useBooth() {
 
   // Gallery
   const openGallery = async () => {
-    setStep('GALLERY'); setActiveSession(null); setSessionsLoading(true);
+    captureSequenceRef.current += 1;
+    clearCountdown();
+    clearAutoProceed();
+    setIsCapturing(false);
+    stopWebcam();
+    setStep('GALLERY');
+    setActiveSession(null);
+    setSessionsLoading(true);
     try { setSessions(await window.electronAPI.listSessions()); }
     catch (err) { setError('Could not load gallery: ' + err.message); }
     finally { setSessionsLoading(false); }
@@ -682,6 +772,11 @@ export default function useBooth() {
 
   const hideNavbar = step === 'LIVE_VIEW' || step === 'TEMPLATE_EDITOR' || step === 'RESULT' || step === 'GALLERY';
   const openSettings = () => {
+    captureSequenceRef.current += 1;
+    clearCountdown();
+    clearAutoProceed();
+    setIsCapturing(false);
+    stopWebcam();
     settingsReturnStepRef.current = step === 'GALLERY' || step === 'SETTINGS'
       ? 'TEMPLATE_SELECTION'
       : step;
@@ -760,5 +855,6 @@ export default function useBooth() {
     setOutputDir, setDigiCamControlPath, setDigiCamControlAvailable, setSelectedPrinter, setMode, setSelectedDeviceId, setMirror, setShotOverride, setCountdownDuration, setFlashEnabled,
     setError, setActiveFilter, closeSettings, changeTheme, selectOutputFolder, openOutputFolder, selectDigiCamControl,
     handleFilterChange, handleGenerateStrip, cloudQrMode, setCloudQrMode, cloudStatus, testCloudConnection,
+    stopWebcam, stopAllMediaStreams,
   };
 }

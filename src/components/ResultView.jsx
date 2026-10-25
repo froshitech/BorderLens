@@ -94,7 +94,7 @@ export default function ResultView({ resultPhotoUrl, resultShareUrl, resultLoopU
             <p className="print-qty-hint">
               {isLandscape
                 ? `${printCopies} ${printCopies === 1 ? 'Copy' : 'Copies'} = ${printCopies} 4R ${printCopies === 1 ? 'Photo' : 'Photos'}`
-                : `${printCopies} ${printCopies === 1 ? 'Copy' : 'Copies'} = ${printCopies * 2} Strips (2-up on 4R)`}
+                : `${printCopies} ${printCopies === 1 ? 'Copy' : 'Copies'} = ${printCopies * 2} Strips on 4x6 (Total: ${printCopies * 2} Strips)`}
             </p>
           </div>
 

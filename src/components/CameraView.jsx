@@ -38,6 +38,23 @@ export default function CameraView({
     };
   }, [captureDisabled, isCapturing, isCounting, onStart]);
 
+  useEffect(() => {
+    return () => {
+      // Unmount cleanup: explicitly stop stream tracks and detach video element when leaving CameraView
+      if (videoRef?.current) {
+        try {
+          if (videoRef.current.srcObject && typeof videoRef.current.srcObject.getTracks === 'function') {
+            videoRef.current.srcObject.getTracks().forEach((track) => {
+              try { track.stop(); } catch (_) {}
+            });
+          }
+          videoRef.current.pause?.();
+          videoRef.current.srcObject = null;
+        } catch (_) {}
+      }
+    };
+  }, [videoRef]);
+
   return (
     <div className="live-fullscreen">
       <button className="live-back-btn" type="button" onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>

@@ -9,6 +9,8 @@ import {
   CloudLinearIcon,
   WiFiLinearIcon,
   EarthLinearIcon,
+  MinusCircleLinearIcon,
+  AddCircleLinearIcon,
 } from '@solar-icons/react';
 
 const PAGE_SIZE = 20;
@@ -20,6 +22,11 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
   const [cloudError, setCloudError] = useState(null);
   const [qrExpanded, setQrExpanded] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [printCopies, setPrintCopies] = useState(1);
+
+  useEffect(() => {
+    setPrintCopies(1);
+  }, [activeSession?.id]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -107,8 +114,15 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
             <div className="three-col-right">
               <div className="action-card">
                 <h2 className="action-card-title">Share &amp; Print</h2>
-                <button type="button" className="qr-wrapper qr-wrapper--interactive" onClick={() => setQrExpanded(true)} aria-label="Enlarge QR code">
-                  <QRCodeSVG value={cloudShareUrl || activeSession.shareUrl} size={150} bgColor="#ffffff" fgColor="#1e2022" level="H" />
+                <button type="button" className="qr-wrapper qr-wrapper--interactive" onClick={() => !cloudLoading && setQrExpanded(true)} aria-label="Enlarge QR code">
+                  {cloudLoading ? (
+                    <div style={{ width: 150, height: 150, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: '#ffffff', borderRadius: '12px' }}>
+                      <div className="spinner" style={{ width: 28, height: 28 }} />
+                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Uploading…</span>
+                    </div>
+                  ) : (
+                    <QRCodeSVG value={cloudShareUrl || activeSession.shareUrl} size={150} bgColor="#ffffff" fgColor="#1e2022" level="H" />
+                  )}
                 </button>
                 <p className="qr-status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
                   {cloudLoading ? (
@@ -121,14 +135,47 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
                     <><WiFiLinearIcon size={15} /> Local Wi-Fi QR</>
                   )}
                 </p>
+
+                {/* Copy Quantity Counter */}
+                <div className="print-qty-control">
+                  <span className="print-qty-label">Print Quantity</span>
+                  <div className="print-qty-stepper">
+                    <button
+                      type="button"
+                      className="print-qty-btn"
+                      onClick={() => setPrintCopies(prev => Math.max(1, prev - 1))}
+                      disabled={isPrinting || printCopies <= 1}
+                      aria-label="Decrease copies"
+                    >
+                      <MinusCircleLinearIcon size={22} />
+                    </button>
+                    <div className="print-qty-display">
+                      <span className="print-qty-num">{printCopies}</span>
+                      <span className="print-qty-unit">{printCopies === 1 ? 'copy' : 'copies'}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="print-qty-btn"
+                      onClick={() => setPrintCopies(prev => Math.min(5, prev + 1))}
+                      disabled={isPrinting || printCopies >= 5}
+                      aria-label="Increase copies"
+                    >
+                      <AddCircleLinearIcon size={22} />
+                    </button>
+                  </div>
+                  <p className="print-qty-hint">
+                    {printCopies} {printCopies === 1 ? 'Copy' : 'Copies'} = {printCopies * 2} Strips on 4x6 (Total: {printCopies * 2} Strips)
+                  </p>
+                </div>
+
                 <button
                   className={`action-btn action-btn--outline ${isPrinting ? 'action-btn--loading' : ''}`}
-                  onClick={() => onPrint(activeSession.stripFilename)}
+                  onClick={() => onPrint(activeSession.stripFilename, printCopies)}
                   disabled={isPrinting}
                   style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}
                 >
                   <PrinterLinearIcon size={18} />
-                  <span>{isPrinting ? 'Printing…' : 'Print Strip'}</span>
+                  <span>{isPrinting ? 'Printing…' : `Print ${printCopies} ${printCopies === 1 ? 'Copy' : 'Copies'}`}</span>
                 </button>
                 <button
                   className="action-btn action-btn--danger"
