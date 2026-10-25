@@ -887,11 +887,11 @@ if (require('electron-squirrel-startup')) app.quit();
 
 const createWindow = () => {
   mainWindow = new BrowserWindow({
-    title: 'PhotoBooth Studio',
-    width: 1280,
-    height: 900,
+    title: 'BorderLens',
+    width: 1920,
+    height: 1080,
     show: false,
-    backgroundColor: '#0c0d14',
+    backgroundColor: '#0B0B0F',
     autoHideMenuBar: true,
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,

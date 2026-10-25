@@ -23,9 +23,11 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
   const [qrExpanded, setQrExpanded] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [printCopies, setPrintCopies] = useState(1);
+  const [isLandscape, setIsLandscape] = useState(false);
 
   useEffect(() => {
     setPrintCopies(1);
+    setIsLandscape(false);
   }, [activeSession?.id]);
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
     return () => { cancelled = true; };
   }, [activeSession, cloudQrMode]);
   return (
-    <div className="gallery-view">
+    <div className={`gallery-view ${activeSession ? 'gallery-view--detail' : ''}`}>
       {!activeSession ? (
         <>
           <div className="gallery-list-header">
@@ -106,10 +108,20 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
             </button>
             <span className="gallery-detail-date">{formatDate(activeSession.date)}</span>
           </div>
-          <div className="three-col-layout three-col-layout--gallery">
+          <div className={`three-col-layout three-col-layout--gallery ${isLandscape ? 'three-col-layout--landscape' : 'three-col-layout--portrait'}`}>
             <RawShots frames={activeSession.rawShots} activeCss="none" onLightbox={onLightbox} loopUrl={activeSession.loopUrl} />
             <div className="three-col-center">
-              <img src={activeSession.stripUrl} alt="Final strip" className="final-strip-img" onClick={() => onLightbox(activeSession.stripUrl, 'Final Strip')} />
+              <img
+                src={activeSession.stripUrl}
+                alt="Final strip"
+                className="final-strip-img"
+                onLoad={e => {
+                  if (e.target.naturalWidth && e.target.naturalHeight) {
+                    setIsLandscape(e.target.naturalWidth > e.target.naturalHeight);
+                  }
+                }}
+                onClick={() => onLightbox(activeSession.stripUrl, 'Final Strip')}
+              />
             </div>
             <div className="three-col-right">
               <div className="action-card">
@@ -164,7 +176,9 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
                     </button>
                   </div>
                   <p className="print-qty-hint">
-                    {printCopies} {printCopies === 1 ? 'Copy' : 'Copies'} = {printCopies * 2} Strips on 4x6 (Total: {printCopies * 2} Strips)
+                    {isLandscape
+                      ? `${printCopies} ${printCopies === 1 ? 'Copy' : 'Copies'} = ${printCopies} 4R ${printCopies === 1 ? 'Photo' : 'Photos'}`
+                      : `${printCopies} ${printCopies === 1 ? 'Copy' : 'Copies'} = ${printCopies * 2} Strips on 4x6 (Total: ${printCopies * 2} Strips)`}
                   </p>
                 </div>
 
