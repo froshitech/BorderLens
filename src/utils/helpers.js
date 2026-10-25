@@ -52,14 +52,17 @@ export function lsSet(key, value) {
 }
 
 export function normalizeCustomTemplates(templates) {
+  const disallowed = ['classic', 'floral', 'neon', 'builtin_classic', 'builtin_floral', 'builtin_neon'];
   return Array.isArray(templates)
-    ? templates.map(template => ({
-      ...template,
-      enabled: template.enabled !== false,
-      orientation: template.orientation || (template.width > template.height ? 'landscape' : 'portrait'),
-      layoutMode: template.layoutMode || template.orientation || (template.width > template.height ? 'landscape' : 'portrait'),
-      fitMode: ['cover', 'contain', 'fill'].includes(template.fitMode) ? template.fitMode : 'cover',
-    }))
+    ? templates
+      .filter(t => !disallowed.includes((t.name || '').trim().toLowerCase()) && !disallowed.includes((t.id || '').trim().toLowerCase()))
+      .map(template => ({
+        ...template,
+        enabled: template.enabled !== false,
+        orientation: template.orientation || (template.width > template.height ? 'landscape' : 'portrait'),
+        layoutMode: template.layoutMode || template.orientation || (template.width > template.height ? 'landscape' : 'portrait'),
+        fitMode: ['cover', 'contain', 'fill'].includes(template.fitMode) ? template.fitMode : 'cover',
+      }))
     : [];
 }
 

@@ -1,4 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
+import {
+  AltArrowLeftLinearIcon,
+  AddCircleLinearIcon,
+  AddSquareLinearIcon,
+  TrashBinTrashLinearIcon,
+  MagicWand2LinearIcon,
+} from '@solar-icons/react';
 
 const MIN_SIZE = 40;
 
@@ -155,7 +162,13 @@ export default function TemplateEditorView({
   return (
     <div className="template-editor-page">
       <header className="template-editor-header">
-        <div><button className="back-btn" onClick={onBack}>← Back to Settings</button><h1>Visual Template Editor</h1><p>{template ? `${template.name} · ${width}×${height}px` : 'No Template Selected'}</p></div>
+        <div>
+          <button className="back-btn" onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+            <AltArrowLeftLinearIcon size={16} /> Back to Settings
+          </button>
+          <h1>Visual Template Editor</h1>
+          <p>{template ? `${template.name} · ${width}×${height}px` : 'No Template Selected'}</p>
+        </div>
       </header>
       <div className="template-editor-layout">
         <aside className="template-editor-toolbar">
@@ -172,9 +185,17 @@ export default function TemplateEditorView({
               </div>
             ))}
           </div>
-          <button className="settings-add-btn" onClick={() => addTemplate('portrait')}>＋ Add Portrait Template</button>
-          <button className="settings-add-btn" onClick={() => addTemplate('landscape')}>＋ Add Landscape Template</button>
-          {template?.isCustom && <button className="template-delete-btn" onClick={deleteTemplate}>🗑 Delete Template</button>}
+          <button className="settings-add-btn" onClick={() => addTemplate('portrait')} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}>
+            <AddCircleLinearIcon size={16} /> Add Portrait Template
+          </button>
+          <button className="settings-add-btn" onClick={() => addTemplate('landscape')} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}>
+            <AddCircleLinearIcon size={16} /> Add Landscape Template
+          </button>
+          {template?.isCustom && (
+            <button className="template-delete-btn" onClick={deleteTemplate} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}>
+              <TrashBinTrashLinearIcon size={16} /> Delete Template
+            </button>
+          )}
         </aside>
         <main className="template-editor-canvas-wrap">
           {template ? (
@@ -211,16 +232,26 @@ export default function TemplateEditorView({
         </main>
         <aside className="template-editor-layers">
           <h3>Layers</h3>
-          <button className="settings-add-btn" onClick={onAddSlot} disabled={!template}>＋ Add Photo Slot</button>
-          <button className="settings-add-btn" onClick={autoDetectSlots} disabled={!template || detectingSlots}>
-            {detectingSlots ? 'Detecting Slots…' : 'Auto-Detect Slots'}
+          <button className="settings-add-btn" onClick={onAddSlot} disabled={!template} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}>
+            <AddSquareLinearIcon size={16} /> Add Photo Slot
+          </button>
+          <button className="settings-add-btn" onClick={autoDetectSlots} disabled={!template || detectingSlots} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}>
+            <MagicWand2LinearIcon size={16} />
+            <span>{detectingSlots ? 'Detecting Slots…' : 'Auto-Detect Slots'}</span>
           </button>
           {detectError && <p className="settings-hint settings-hint--error">{detectError}</p>}
           <label className="template-editor-fit-label">Fit mode<select value={template?.fitMode || 'cover'} onChange={event => template && onUpdateFitMode(template.id, event.target.value)} disabled={!template}>
             <option value="cover">Cover</option><option value="contain">Contain</option><option value="fill">Fill</option>
           </select></label>
           <button className="template-editor-layer template-editor-layer--background" disabled={!template}>Background</button>
-          {slots.map((slot, index) => <div key={index} className={`template-editor-layer ${selectedIndex === index ? 'template-editor-layer--active' : ''}`}><button onClick={() => setSelectedIndex(index)}>Photo {index + 1}</button><button className="template-editor-delete" onClick={() => onDeleteSlot(index)}>Delete</button></div>)}
+          {slots.map((slot, index) => (
+            <div key={index} className={`template-editor-layer ${selectedIndex === index ? 'template-editor-layer--active' : ''}`}>
+              <button onClick={() => setSelectedIndex(index)}>Photo {index + 1}</button>
+              <button className="template-editor-delete" onClick={() => onDeleteSlot(index)} title="Delete photo slot" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                <TrashBinTrashLinearIcon size={14} />
+              </button>
+            </div>
+          ))}
         </aside>
       </div>
     </div>

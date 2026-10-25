@@ -1,4 +1,11 @@
 import React, { useEffect } from 'react';
+import {
+  AltArrowLeftLinearIcon,
+  CameraLinearIcon,
+  CameraBoldIcon,
+  StarsLinearIcon,
+  CheckLinearIcon,
+} from '@solar-icons/react';
 
 export default function CameraView({
   mode, videoRef, mirror, isStreamReady, isCapturing, isCounting, countdown,
@@ -33,15 +40,20 @@ export default function CameraView({
 
   return (
     <div className="live-fullscreen">
-      <button className="live-back-btn" type="button" onClick={onBack}>
-        ← Templates
+      <button className="live-back-btn" type="button" onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+        <AltArrowLeftLinearIcon size={18} /> Templates
       </button>
       <div className="live-camera-stage">
         {mode === 'webcam' ? (
           <video ref={videoRef} autoPlay playsInline className="live-video"
             style={{ filter: 'none', transform: mirror ? 'scaleX(-1)' : 'none' }} />
         ) : (
-          <div className="live-dslr-bg"><div className="dslr-icon">📷</div><p>DSLR Ready</p></div>
+          <div className="live-dslr-bg">
+            <div className="dslr-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CameraLinearIcon size={52} color="var(--accent)" />
+            </div>
+            <p>DSLR Ready</p>
+          </div>
         )}
         {!isStreamReady && mode === 'webcam' && (
           <div className="live-starting"><div className="spinner-large" /><p>Starting camera…</p></div>
@@ -56,11 +68,14 @@ export default function CameraView({
           <div className="live-action-area">
             {retakingIdx !== null && <div className="live-retake-prompt">Retaking Shot #{retakingIdx + 1}</div>}
             <div className="live-instruction">
-              <span className="live-instruction-icon">✦</span>
+              <span className="live-instruction-icon">
+                <StarsLinearIcon size={16} />
+              </span>
               <span>Strike your best pose! {shotCount} shot{shotCount === 1 ? '' : 's'} will be taken automatically.</span>
             </div>
-            <button className="live-cta-btn" onClick={onStart} disabled={captureDisabled}>
-              📸 Start Capture {shotCount > 1 ? `(${shotCount} Shots)` : ''}
+            <button className="live-cta-btn" onClick={onStart} disabled={captureDisabled} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.65rem' }}>
+              <CameraBoldIcon size={24} />
+              <span>Start Capture {shotCount > 1 ? `(${shotCount} Shots)` : ''}</span>
               <small className="live-shortcut-hint">Press SPACEBAR or ENTER</small>
             </button>
           </div>
@@ -88,7 +103,11 @@ function CapturedShotsSidebar({ shotCount, frames }) {
           return (
             <div className={`live-shot-slot ${frame ? 'live-shot-slot--filled' : ''}`} key={index}>
               {frame ? <img src={frame.url} alt={`Captured shot ${index + 1}`} /> : <span>Shot {index + 1}</span>}
-              {frame && <b className="live-shot-check" aria-label="Captured">✓</b>}
+              {frame && (
+                <b className="live-shot-check" aria-label="Captured" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <CheckLinearIcon size={12} strokeWidth={2.5} />
+                </b>
+              )}
               {!frame && <small>Waiting…</small>}
             </div>
           );

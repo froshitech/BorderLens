@@ -153,7 +153,17 @@ export default function useBooth() {
     return () => stopWebcam();
   }, [mode, step, retakingIdx]);
 
-  useEffect(() => { if (step !== 'LIVE_VIEW' && step !== 'REVIEW_SHOTS') clearCountdown(); }, [step]);
+  useEffect(() => {
+    if (step !== 'LIVE_VIEW' && step !== 'REVIEW_SHOTS') clearCountdown();
+    if (step !== 'REVIEW_SHOTS') clearAutoProceed();
+  }, [step]);
+
+  useEffect(() => {
+    return () => {
+      clearCountdown();
+      clearAutoProceed();
+    };
+  }, []);
 
   useEffect(() => {
     if (step === 'GALLERY' || step === 'SETTINGS' || step === 'TEMPLATE_SELECTION') {
@@ -389,12 +399,13 @@ export default function useBooth() {
   };
 
   // ─── Print ────────────────────────────────────────────────────────────────────
-  const handlePrint = async (stripFilename) => {
+  const handlePrint = async (stripFilename, copies = 1) => {
     if (isPrinting) return;
+    const count = Math.max(1, Math.min(5, Number(copies) || 1));
     setIsPrinting(true); setPrintMsg(null);
     try {
-      await window.electronAPI.printStrip({ stripFilename, copies: 1, printerName: selectedPrinter || null });
-      setPrintMsg('✅ Sent to printer!');
+      await window.electronAPI.printStrip({ stripFilename, copies: count, printerName: selectedPrinter || null });
+      setPrintMsg(`✅ Sent to printer! (${count} ${count === 1 ? 'copy' : 'copies'})`);
     } catch (err) { setPrintMsg('❌ Print failed: ' + err.message); }
     finally { setIsPrinting(false); setTimeout(() => setPrintMsg(null), 4000); }
   };

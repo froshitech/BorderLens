@@ -1,4 +1,8 @@
 import React from 'react';
+import {
+  RestartLinearIcon,
+  AltArrowRightLinearIcon,
+} from '@solar-icons/react';
 
 const FILTERS = [
   { id: 'normal', label: 'Normal', css: 'none' },
@@ -15,15 +19,15 @@ export default function ReviewView({ rawFrames, activeFilter, activeCss, retakin
   return (
     <div className="review-layout">
       <div className="review-left">
-        <h2 className="review-title">Review & Customize</h2>
+        <h2 className="review-title">Review &amp; Customize</h2>
         <div className="review-grid">
           {rawFrames.map((frame, i) => (
             <div key={i} className={`review-card ${retakingIdx === i ? 'review-card--retaking' : ''}`}>
               <div className="review-card-img-wrap">
                 <img src={frame.url} alt={`Shot ${i + 1}`} className="review-card-img" style={{ filter: activeCss }} />
                 {retakingIdx === i ? <div className="review-card-retaking-badge">Retaking…</div> : (
-                  <button className="review-retake-btn" onClick={() => onRetake(i)} disabled={isRetaking || isProcessing}>
-                    ↺ Retake Shot #{i + 1}
+                  <button className="review-retake-btn" onClick={() => onRetake(i)} disabled={isRetaking || isProcessing} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
+                    <RestartLinearIcon size={14} /> Retake Shot #{i + 1}
                   </button>
                 )}
               </div>
@@ -53,7 +57,10 @@ export default function ReviewView({ rawFrames, activeFilter, activeCss, retakin
           <p className="auto-proceed-label">Auto-generating in <strong>{autoProceedSec}s</strong></p>
           <div className="auto-proceed-bar"><div className="auto-proceed-fill" /></div>
         </div>
-        <button className="cta-btn" onClick={onGenerate} disabled={isProcessing}>Looks Good! Generate Strip →</button>
+        <button className="cta-btn" onClick={onGenerate} disabled={isProcessing} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+          <span>Looks Good! Generate Strip</span>
+          <AltArrowRightLinearIcon size={18} />
+        </button>
       </div>
     </div>
   );

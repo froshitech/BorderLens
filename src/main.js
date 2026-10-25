@@ -127,14 +127,7 @@ server.post('/api/proceed-to-camera', (req, res) => {
 
 // ── /api/templates — get active templates for mobile remote ──────────────────
 server.get('/api/templates', (req, res) => {
-  let list = remoteTemplatesList;
-  if (!list || list.length === 0) {
-    list = [
-      { id: 'classic', name: 'Classic Strip', layoutMode: 'portrait' },
-      { id: 'floral', name: 'Golden Celebration', layoutMode: 'portrait' },
-      { id: 'neon', name: 'VIP Neon', layoutMode: 'portrait' },
-    ];
-  }
+  const list = remoteTemplatesList || [];
   const formatted = list.map(t => ({
     id: t.id,
     name: t.name || 'Template',
@@ -448,9 +441,12 @@ function getCloudAttachmentUrl(url) {
 }
 
 function buildCloudViewerUrl({ stripUrl, rawUrls, boomerangUrl }) {
-  if (!cloudConfig.viewerUrl) return getCloudAttachmentUrl(stripUrl);
-  const separator = cloudConfig.viewerUrl.includes('?') ? '&' : '?';
-  return `${cloudConfig.viewerUrl}${separator}strip=${encodeURIComponent(stripUrl)}&raws=${encodeURIComponent(JSON.stringify(rawUrls))}&gif=${encodeURIComponent(boomerangUrl || '')}`;
+  const viewer = (cloudConfig.viewerUrl || '').trim();
+  if (!viewer || viewer.includes('borderlens-sigma.vercel.app')) {
+    return getCloudAttachmentUrl(stripUrl);
+  }
+  const separator = viewer.includes('?') ? '&' : '?';
+  return `${viewer}${separator}strip=${encodeURIComponent(stripUrl)}&raws=${encodeURIComponent(JSON.stringify(rawUrls))}&gif=${encodeURIComponent(boomerangUrl || '')}`;
 }
 
 function hasCloudAssetCache(session) {
@@ -815,6 +811,8 @@ const createWindow = () => {
     title: 'PhotoBooth Studio',
     width: 1280,
     height: 900,
+    show: false,
+    backgroundColor: '#0c0d14',
     autoHideMenuBar: true,
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
@@ -835,7 +833,11 @@ const createWindow = () => {
     });
   });
 
-  mainWindow.maximize();
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.maximize();
+    mainWindow.show();
+  });
+
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
   // mainWindow.webContents.openDevTools(); // uncomment for debugging
 };
@@ -864,16 +866,25 @@ async function backfillThumbnails() {
   }
 }
 
-app.whenReady().then(async () => {
+app.whenReady().then(() => {
   configurePaths();
-  const builtinTemplates = await ensureDefaultTemplates(OUTPUT_DIR);
+  createWindow();
+
+  const builtinTemplatesPromise = ensureDefaultTemplates(OUTPUT_DIR);
   startServer();
-  await backfillThumbnails();
+  builtinTemplatesPromise.then(() => {
+    setTimeout(() => {
+      backfillThumbnails().catch(e => console.warn('[thumb] backfill error:', e));
+    }, 1200);
+  });
   if (cloudClientConfigured) {
     cleanupExpiredCloudSessions().catch(error => { logCloudError('startup cleanup', error); });
   }
 
-  ipcMain.handle('get-builtin-templates', () => builtinTemplates.templates);
+  ipcMain.handle('get-builtin-templates', async () => {
+    const result = await builtinTemplatesPromise;
+    return result.templates;
+  });
   ipcMain.handle('get-settings', () => ({
     outputDir: OUTPUT_DIR,
     digiCamControlPath: DIGI_CAM_DIR,
@@ -893,6 +904,8 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle('test-and-cleanup-cloud', async () => {
+    loadCloudEnvironment();
+    configureCloudinary();
     if (!cloudClientConfigured) return { configured: false, online: false, reason: 'Missing local .env credentials.' };
     try {
       await cloudinary.api.ping();
@@ -905,6 +918,8 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle('upload-session-cloud', async (event, sessionId) => {
+    loadCloudEnvironment();
+    configureCloudinary();
     if (typeof sessionId !== 'string' || !sessionId.trim() || path.basename(sessionId) !== sessionId) {
       throw new Error('Invalid session ID.');
     }
@@ -1403,7 +1418,6 @@ app.whenReady().then(async () => {
     });
   });
 
-  createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

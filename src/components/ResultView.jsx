@@ -1,5 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import {
+  PrinterLinearIcon,
+  StarsBoldIcon,
+  CloudLinearIcon,
+  WiFiLinearIcon,
+  EarthLinearIcon,
+  MinusCircleLinearIcon,
+  AddCircleLinearIcon,
+} from '@solar-icons/react';
 
 export default function ResultView({ resultPhotoUrl, resultShareUrl, resultLoopUrl, rawFrames, activeCss,
   template, resultFilename, isPrinting, onPrint, onNewSession, onLightbox, cloudQrMode = 'local' }) {
@@ -7,6 +16,7 @@ export default function ResultView({ resultPhotoUrl, resultShareUrl, resultLoopU
   const [cloudLoading, setCloudLoading] = useState(false);
   const [cloudError, setCloudError] = useState(null);
   const [qrExpanded, setQrExpanded] = useState(false);
+  const [printCopies, setPrintCopies] = useState(1);
   const sessionId = resultFilename?.replace(/^strip_/, '').replace(/\.jpg$/, '');
   useEffect(() => {
     let cancelled = false;
@@ -35,16 +45,76 @@ export default function ResultView({ resultPhotoUrl, resultShareUrl, resultLoopU
       </div>
       <div className="three-col-right">
         <div className="action-card">
-          <h2 className="action-card-title">🎉 Ready!</h2>
+          <h2 className="action-card-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+            <StarsBoldIcon size={24} color="var(--accent)" /> Ready!
+          </h2>
           <p className="action-card-sub">Scan to save on your phone</p>
           <button type="button" className="qr-wrapper qr-wrapper--interactive" onClick={() => setQrExpanded(true)} aria-label="Enlarge QR code">
             <QRCodeSVG value={qrUrl} size={170} bgColor="#ffffff" fgColor="#1e2022" level="H" />
           </button>
-          <p className="qr-status">{cloudLoading ? '☁️ Generating Online QR…' : cloudError ? `📶 Local Wi-Fi QR (Offline Fallback): ${cloudError}` : cloudQrMode === 'cloud' ? '🌍 Online QR (Works on Mobile Data • 7-Day Link)' : '📶 Local Wi-Fi QR'}</p>
-          <button className={`action-btn action-btn--outline ${isPrinting ? 'action-btn--loading' : ''}`} onClick={() => onPrint(resultFilename)} disabled={isPrinting}>
-            {isPrinting ? '🖨 Printing…' : '🖨 Print 4R Strip'}
+          <p className="qr-status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
+            {cloudLoading ? (
+              <><CloudLinearIcon size={15} /> Generating Online QR…</>
+            ) : cloudError ? (
+              <><WiFiLinearIcon size={15} /> Local Wi-Fi QR (Offline Fallback): {cloudError}</>
+            ) : cloudQrMode === 'cloud' ? (
+              <><EarthLinearIcon size={15} /> Online QR (Works on Mobile Data • 7-Day Link)</>
+            ) : (
+              <><WiFiLinearIcon size={15} /> Local Wi-Fi QR</>
+            )}
+          </p>
+
+          {/* Copy Quantity Counter */}
+          <div className="print-qty-control">
+            <span className="print-qty-label">Print Quantity</span>
+            <div className="print-qty-stepper">
+              <button
+                type="button"
+                className="print-qty-btn"
+                onClick={() => setPrintCopies(prev => Math.max(1, prev - 1))}
+                disabled={isPrinting || printCopies <= 1}
+                aria-label="Decrease copies"
+              >
+                <MinusCircleLinearIcon size={22} />
+              </button>
+              <div className="print-qty-display">
+                <span className="print-qty-num">{printCopies}</span>
+                <span className="print-qty-unit">{printCopies === 1 ? 'copy' : 'copies'}</span>
+              </div>
+              <button
+                type="button"
+                className="print-qty-btn"
+                onClick={() => setPrintCopies(prev => Math.min(5, prev + 1))}
+                disabled={isPrinting || printCopies >= 5}
+                aria-label="Increase copies"
+              >
+                <AddCircleLinearIcon size={22} />
+              </button>
+            </div>
+            <p className="print-qty-hint">
+              {isLandscape
+                ? `${printCopies} ${printCopies === 1 ? 'Copy' : 'Copies'} = ${printCopies} 4R ${printCopies === 1 ? 'Photo' : 'Photos'}`
+                : `${printCopies} ${printCopies === 1 ? 'Copy' : 'Copies'} = ${printCopies * 2} Strips (2-up on 4R)`}
+            </p>
+          </div>
+
+          <button
+            className={`action-btn action-btn--outline ${isPrinting ? 'action-btn--loading' : ''}`}
+            onClick={() => onPrint(resultFilename, printCopies)}
+            disabled={isPrinting}
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}
+          >
+            <PrinterLinearIcon size={18} />
+            <span>{isPrinting ? 'Printing…' : `Print ${printCopies} ${printCopies === 1 ? 'Copy' : 'Copies'}`}</span>
           </button>
-          <button className="cta-btn new-session-btn" onClick={onNewSession}>✨ New Session</button>
+          <button
+            className="cta-btn new-session-btn"
+            onClick={onNewSession}
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+          >
+            <StarsBoldIcon size={20} />
+            <span>New Session</span>
+          </button>
         </div>
       </div>
     </div>
