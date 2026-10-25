@@ -16,6 +16,20 @@
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
 </p>
 
+<p align="center">
+  <a href="https://github.com/froshitech/BorderLens/releases/latest">
+    <img src="https://img.shields.io/badge/Download-Installer%20(.exe)-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Download Installer" />
+  </a>
+  &nbsp;
+  <a href="https://github.com/froshitech/BorderLens/releases/latest">
+    <img src="https://img.shields.io/badge/Download-Portable%20(.zip)-6f42c1?style=for-the-badge&logo=windows&logoColor=white" alt="Download Portable ZIP" />
+  </a>
+  &nbsp;
+  <a href="https://github.com/froshitech/BorderLens/releases">
+    <img src="https://img.shields.io/badge/Releases-v1.0.0-24292e?style=for-the-badge&logo=github&logoColor=white" alt="GitHub Releases" />
+  </a>
+</p>
+
 ---
 
 ## 📑 Table of Contents
@@ -23,7 +37,7 @@
 - [Overview](#-overview)
 - [Key Features](#-key-features)
 - [System & Hardware Requirements](#-system--hardware-requirements)
-- [Installation Guide (Windows `.exe`)](#-installation-guide-windows-exe)
+- [Installation & Download Guide (Windows)](#-installation--download-guide-windows)
 - [Quick Start Guide (For Event Day Operators)](#-quick-start-guide-for-event-day-operators)
 - [Developer Guide (Building from Source)](#-developer-guide-building-from-source)
 - [Packaging & Generating Windows `.exe`](#-packaging--generating-windows-exe)
@@ -60,6 +74,7 @@ Traditional photobooth software often relies on expensive monthly subscriptions,
 | 🖨️ **Silent Direct Printing** | Background 4R (4x6") printing via Windows driver spooler without popup dialogs. Supports 1–5 copy selection with automatic strip count calculation. |
 | 🌐 **Zero-Cloud LAN Sharing** | Local Express microserver generates instant QR codes for guests on booth Wi-Fi to download final strips, raw shots, and boomerang GIFs. |
 | ☁️ **Cloud QR Fallback** | Optional Cloudinary sync with 7-day auto-purge for guests using mobile data (4G/5G). Includes privacy eye toggles to shield credentials. |
+| 🗃️ **Session Gallery & Bulk Delete** | Browse past sessions, view individual shots, trigger reprints, and use the multi-select tool to bulk delete old sessions safely. |
 | ⚡ **Hardware Accelerated UI** | High-framerate CSS and SVG animations with automatic splash screen transitions and light/dark studio themes. |
 
 ---
@@ -82,55 +97,56 @@ Traditional photobooth software often relies on expensive monthly subscriptions,
 
 ---
 
-## 📥 Installation Guide (Windows `.exe`)
+## 📥 Installation & Download Guide (Windows)
 
-BorderLens provides a one-click automated Windows installer as well as a portable zero-install option.
+BorderLens is distributed as pre-packaged, self-contained Windows 64-bit binaries with zero runtime dependencies. You do **not** need Node.js, npm, or Git installed.
 
-### Method A: Automated Windows Installer (`Setup.exe`) — Recommended
+| Distribution Package | Target File | Recommended Use Case | Download Link |
+| :--- | :--- | :--- | :--- |
+| **Windows Installer** | `BorderLens-1.0.0 Setup.exe` | **Recommended**. Automated 1-click install, creates Desktop & Start Menu shortcuts, manages auto-updates. | [**Download Setup.exe**](https://github.com/froshitech/BorderLens/releases/latest) |
+| **Portable Edition** | `BorderLens-win32-x64-1.0.0.zip` | Zero installation. Run directly from USB drives or guest accounts without admin privileges. | [**Download Portable ZIP**](https://github.com/froshitech/BorderLens/releases/latest) |
 
-This method installs BorderLens on your system, registers file associations, and creates convenient Desktop and Start Menu shortcuts.
+👉 **[View All Releases & Assets on GitHub Releases](https://github.com/froshitech/BorderLens/releases/latest)**
 
-1. **Locate or Download the Installer**:
-   - Obtain `BorderLens-1.0.0 Setup.exe` from the latest release or from your build directory:
-     ```text
-     out\make\squirrel.windows\x64\BorderLens-1.0.0 Setup.exe
-     ```
-2. **Launch the Installer**:
+---
+
+### Option 1: Automated Windows Installer (`Setup.exe`) — Recommended
+
+This installs BorderLens on your system, creates a **Desktop shortcut**, registers the app in your **Start Menu**, and automatically manages future updates.
+
+1. **Download the Installer**:
+   - Go to **[GitHub Releases](https://github.com/froshitech/BorderLens/releases/latest)** and download **`BorderLens-1.0.0 Setup.exe`**.
+2. **Run the Installer**:
    - Double-click `BorderLens-1.0.0 Setup.exe`.
-3. **Windows SmartScreen Prompt (If Applicable)**:
-   - If Windows displays a blue prompt stating *"Windows protected your PC"*:
+3. **Windows SmartScreen (If Prompted)**:
+   - If Windows displays *"Windows protected your PC"* (standard for open-source applications without a purchased EV code-signing certificate):
      1. Click **More info**.
      2. Click **Run anyway**.
-     *(This is a standard Windows notification for newly packaged software that does not yet carry an EV code-signing certificate).*
-4. **Automatic Installation**:
-   - The installer will unpack all dependencies (including image compositing engines and assets) without requiring manual configuration.
-   - A **BorderLens** shortcut icon will appear on your Desktop.
-5. **Launch & Enjoy**:
-   - The application will automatically launch upon completion, display the animated splash screen, and transition straight into the booth template screen.
-   - For all future event runs, simply double-click the **BorderLens** icon on your Desktop.
+4. **1-Click Launch**:
+   - BorderLens installs quietly into `%LOCALAPPDATA%\borderlens\`, places a **BorderLens** icon on your Desktop, and immediately launches into the photo booth studio.
+   - For all future sessions, double-click the **BorderLens** shortcut on your Desktop or search for it in your Windows Start Menu.
 
 ---
 
-### Method B: Portable ZIP Package (No Installation Required)
+### Option 2: Portable ZIP Package (Zero Installation Required)
 
-Ideal for running from an external USB drive or on computers with restricted administrator permissions:
+Ideal for running from a USB thumb drive, portable external SSD, or on computers with restricted administrative privileges:
 
-1. **Locate the ZIP Archive**:
-   ```text
-   out\make\zip\win32\x64\BorderLens-win32-x64-1.0.0.zip
-   ```
-2. **Extract Files**:
-   - Right-click the `.zip` file and select **Extract All...** to any folder (e.g. `C:\BorderLens` or your USB drive).
-3. **Run Directly**:
-   - Open the extracted folder and double-click `BorderLens.exe`. The application runs immediately without installing background services.
+1. **Download the ZIP**:
+   - Go to **[GitHub Releases](https://github.com/froshitech/BorderLens/releases/latest)** and download **`BorderLens-win32-x64-1.0.0.zip`**.
+2. **Extract**:
+   - Right-click the `.zip` file and select **Extract All...** to any folder (e.g., `C:\BorderLens` or your USB drive).
+3. **Run**:
+   - Open the extracted folder and double-click **`BorderLens.exe`**. It runs immediately with no installation required.
 
 ---
 
-### 🔄 Updating or Reinstalling
-- To update to a newer version, simply run the new `BorderLens-x.x.x Setup.exe`. It will safely upgrade the software without touching your saved photos, raw captures, or custom templates stored in your output folder.
+### 🔄 Updating BorderLens
+- When a new version is released, simply download and run the new `BorderLens-x.x.x Setup.exe`. It automatically upgrades the app while preserving all your captured photos, custom overlays, and operator settings.
 
 ### 🗑️ Uninstallation
-- To remove BorderLens, go to Windows **Settings** > **Apps** > **Installed apps**, locate **BorderLens**, and click **Uninstall**.
+- To uninstall BorderLens, open Windows **Settings** > **Apps** > **Installed apps**, find **BorderLens**, and click **Uninstall**.
+- Your captured photo session directory (`D:\photobooth_output` or `Pictures\photobooth_output`) is preserved and never deleted during uninstall.
 
 ---
 
@@ -236,6 +252,14 @@ Allow attendants, event coordinators, or guests to trigger sessions remotely:
 - Configured directly through Windows printing spoolers.
 - Adjust **Print Quantity** (1 to 5 copies) on the result screen.
 - For 2x6 photo strips, BorderLens prints two duplicate strips per 4x6 sheet, automatically displaying total strip yields (e.g., *2 Copies = 4 Strips on 4x6*).
+
+### 5. Session Gallery & Bulk Deletion
+- Click **Gallery** in the top navigation bar to review all past event sessions.
+- **Inspect**: Click any session card to review the composited strip, raw photo frames, animated boomerang GIF, and trigger reprints.
+- **Bulk Selection & Cleanup**:
+  1. Click **Select / Bulk Delete** in the top-right corner of the gallery.
+  2. Select individual sessions via the circular card checkboxes, or click **Select All**.
+  3. Click **Delete Selected (N)** to permanently remove the chosen sessions, raw captures, and composite files from the hard drive with a single confirmation.
 
 ---
 
