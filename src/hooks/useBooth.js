@@ -715,6 +715,25 @@ export default function useBooth() {
     }
   };
 
+  const handleDeleteSessions = async (sessionIds) => {
+    if (!Array.isArray(sessionIds) || sessionIds.length === 0) return;
+    const count = sessionIds.length;
+    const confirmMsg = count === 1
+      ? 'Delete this session and all of its photos permanently?'
+      : `Are you sure you want to permanently delete ${count} selected sessions? This cannot be undone.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await window.electronAPI.deleteSessions(sessionIds);
+      if (activeSession && sessionIds.includes(activeSession.id)) {
+        setActiveSession(null);
+      }
+      setSessions(await window.electronAPI.listSessions());
+    } catch (err) {
+      setError(`Could not delete sessions: ${err.message}`);
+    }
+  };
+
   const openLightbox  = (url, label) => { setLightboxUrl(url); setLightboxLabel(label); };
   const closeLightbox = () => { setLightboxUrl(null); setLightboxLabel(''); };
 
@@ -902,7 +921,7 @@ export default function useBooth() {
     showFlash, lightboxUrl, lightboxLabel, closeLightbox, openLightbox,
     isProcessing, activeFilter, printMsg, printerToast, hideNavbar, openGallery, openSettings,
     selectedTemplate, setActiveSession, activeSession, resultPhotoUrl, resultShareUrl, resultLoopUrl, rawFrames, activeCss,
-    resultFilename, isPrinting, handlePrint, handleNewSession, sessions, sessionsLoading, formatDate, handleDeleteSession,
+    resultFilename, isPrinting, handlePrint, handleNewSession, sessions, sessionsLoading, formatDate, handleDeleteSession, handleDeleteSessions,
     outputDir, digiCamControlPath, digiCamControlAvailable, printers, selectedPrinter, mode, devices, selectedDeviceId, mirror, shotOverride, countdownDuration, flashEnabled,
     builtinTemplates, hiddenBuiltins, customTemplates, activeTheme, customAccent, setActiveTheme, setCustomAccent,
     saveCustomTemplate, handlePickCustomTemplate, handleRemoveCustomTemplate, toggleBuiltin, toggleCustomTemplate, updateCustomTemplateLayout, updateCustomTemplateSlots, updateCustomTemplateFitMode, addCustomTemplateSlot, deleteCustomTemplateSlot, detectCustomTemplateSlots, openTemplateEditor, closeTemplateEditor,

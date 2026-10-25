@@ -30,7 +30,7 @@ const App = () => {
     step, setStep, stepLabels, themes, showFlash, lightboxUrl, lightboxLabel, closeLightbox, openLightbox,
     isProcessing, activeFilter, printMsg, printerToast, hideNavbar, openGallery, openSettings, selectedTemplate, setActiveSession,
     activeSession, resultPhotoUrl, resultShareUrl, resultLoopUrl, rawFrames, activeCss, resultFilename, isPrinting, handlePrint,
-    handleNewSession, sessions, sessionsLoading, formatDate, handleDeleteSession, outputDir, digiCamControlPath, digiCamControlAvailable,
+    handleNewSession, sessions, sessionsLoading, formatDate, handleDeleteSession, handleDeleteSessions, outputDir, digiCamControlPath, digiCamControlAvailable,
     printers, selectedPrinter, mode, devices, selectedDeviceId, mirror, shotOverride, countdownDuration, flashEnabled, builtinTemplates, hiddenBuiltins, customTemplates,
     activeTheme, customAccent, setActiveTheme, setCustomAccent, setCountdownDuration, setFlashEnabled, cloudQrMode, setCloudQrMode, cloudStatus, testCloudConnection, saveCustomTemplate, handlePickCustomTemplate, handleRemoveCustomTemplate,
     cloudConfigForm, handleSaveCloudConfig, handleResetCloudConfig,
@@ -114,7 +114,7 @@ const App = () => {
           {step === 'RESULT' && <ResultView resultPhotoUrl={resultPhotoUrl} resultShareUrl={resultShareUrl} resultLoopUrl={resultLoopUrl} rawFrames={rawFrames} activeCss={activeCss} template={selectedTemplate} resultFilename={resultFilename} isPrinting={isPrinting} onPrint={handlePrint} onNewSession={handleNewSession} onLightbox={openLightbox} cloudQrMode={cloudQrMode} />}
           {step === 'GALLERY' && (
             <Suspense fallback={<ViewLoading />}>
-              <GalleryView sessions={sessions} sessionsLoading={sessionsLoading} activeSession={activeSession} formatDate={formatDate} onSelect={setActiveSession} onBack={() => setActiveSession(null)} onBackToTemplates={handleBackToTemplates} onLightbox={openLightbox} onPrint={handlePrint} onDelete={handleDeleteSession} cloudQrMode={cloudQrMode} />
+              <GalleryView sessions={sessions} sessionsLoading={sessionsLoading} activeSession={activeSession} formatDate={formatDate} onSelect={setActiveSession} onBack={() => setActiveSession(null)} onBackToTemplates={handleBackToTemplates} onLightbox={openLightbox} onPrint={handlePrint} onDelete={handleDeleteSession} onDeleteMultiple={handleDeleteSessions} cloudQrMode={cloudQrMode} />
             </Suspense>
           )}
         </div>

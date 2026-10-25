@@ -11,12 +11,13 @@ import {
   EarthLinearIcon,
   MinusCircleLinearIcon,
   AddCircleLinearIcon,
+  CheckLinearIcon,
 } from '@solar-icons/react';
 
 const PAGE_SIZE = 20;
 
 export default function GalleryView({ sessions, sessionsLoading, activeSession, formatDate, isPrinting,
-  onSelect, onBack, onBackToTemplates, onLightbox, onPrint, onDelete, cloudQrMode = 'local' }) {
+  onSelect, onBack, onBackToTemplates, onLightbox, onPrint, onDelete, onDeleteMultiple, cloudQrMode = 'local' }) {
   const [cloudShareUrl, setCloudShareUrl] = useState(null);
   const [cloudLoading, setCloudLoading] = useState(false);
   const [cloudError, setCloudError] = useState(null);
@@ -24,6 +25,8 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [printCopies, setPrintCopies] = useState(1);
   const [isLandscape, setIsLandscape] = useState(false);
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
 
   useEffect(() => {
     setPrintCopies(1);
@@ -32,9 +35,42 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
+    setSelectedIds(new Set());
+    setIsSelectMode(false);
   }, [sessions?.length]);
 
   const displayedSessions = Array.isArray(sessions) ? sessions.slice(0, visibleCount) : [];
+
+  const toggleSelectSession = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === sessions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(sessions.map(s => s.id)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return;
+    if (onDeleteMultiple) {
+      onDeleteMultiple(Array.from(selectedIds));
+      setSelectedIds(new Set());
+      setIsSelectMode(false);
+    }
+  };
+
+  const cancelSelectMode = () => {
+    setIsSelectMode(false);
+    setSelectedIds(new Set());
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -52,10 +88,60 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
       {!activeSession ? (
         <>
           <div className="gallery-list-header">
-            <button className="back-btn session-back-btn" onClick={onBackToTemplates} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-              <AltArrowLeftLinearIcon size={16} /> Choose Template
-            </button>
-            <h2 className="section-title">Past Sessions</h2>
+            <div className="gallery-list-header-left">
+              <button className="back-btn session-back-btn" onClick={onBackToTemplates} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                <AltArrowLeftLinearIcon size={16} /> Choose Template
+              </button>
+              <h2 className="section-title">Past Sessions</h2>
+              {sessions.length > 0 && (
+                <span className="gallery-count-badge">
+                  {sessions.length} {sessions.length === 1 ? 'session' : 'sessions'}
+                </span>
+              )}
+            </div>
+
+            {sessions.length > 0 && (
+              <div className="gallery-list-header-actions">
+                {isSelectMode ? (
+                  <div className="gallery-bulk-bar">
+                    <button
+                      type="button"
+                      className="bulk-action-btn bulk-action-btn--subtle"
+                      onClick={toggleSelectAll}
+                    >
+                      {selectedIds.size === sessions.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                    <button
+                      type="button"
+                      className="bulk-action-btn bulk-action-btn--danger"
+                      disabled={selectedIds.size === 0}
+                      onClick={handleBulkDelete}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                    >
+                      <TrashBinTrashLinearIcon size={16} />
+                      Delete Selected ({selectedIds.size})
+                    </button>
+                    <button
+                      type="button"
+                      className="bulk-action-btn bulk-action-btn--cancel"
+                      onClick={cancelSelectMode}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="action-btn action-btn--outline gallery-select-trigger"
+                    onClick={() => setIsSelectMode(true)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', width: 'auto', padding: '0.45rem 1.1rem' }}
+                  >
+                    <TrashBinTrashLinearIcon size={16} />
+                    <span>Select / Bulk Delete</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           {sessionsLoading && <div className="gallery-loading"><div className="spinner-large" /><p>Loading…</p></div>}
           {!sessionsLoading && sessions.length === 0 && (
@@ -69,22 +155,34 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
           {!sessionsLoading && sessions.length > 0 && (
             <>
               <div className="session-grid">
-                {displayedSessions.map(session => (
-                  <div key={session.id} className="session-card" onClick={() => onSelect(session)}>
-                    <img
-                      src={session.thumbUrl}
-                      alt=""
-                      className="session-card-thumb"
-                      loading="lazy"
-                      decoding="async"
-                      onError={e => { e.target.src = session.stripUrl; }}
-                    />
-                    <div className="session-card-info">
-                      <span className="session-card-date">{formatDate(session.date)}</span>
-                      <span className="session-card-count">{session.rawShots.length} shot{session.rawShots.length !== 1 ? 's' : ''}</span>
+                {displayedSessions.map(session => {
+                  const isSelected = selectedIds.has(session.id);
+                  return (
+                    <div
+                      key={session.id}
+                      className={`session-card ${isSelectMode ? 'session-card--selectable' : ''} ${isSelected ? 'session-card--selected' : ''}`}
+                      onClick={() => (isSelectMode ? toggleSelectSession(session.id) : onSelect(session))}
+                    >
+                      {isSelectMode && (
+                        <div className={`session-card-check ${isSelected ? 'session-card-check--active' : ''}`}>
+                          {isSelected && <CheckLinearIcon size={14} color="#ffffff" strokeWidth={3} />}
+                        </div>
+                      )}
+                      <img
+                        src={session.thumbUrl}
+                        alt=""
+                        className="session-card-thumb"
+                        loading="lazy"
+                        decoding="async"
+                        onError={e => { e.target.src = session.stripUrl; }}
+                      />
+                      <div className="session-card-info">
+                        <span className="session-card-date">{formatDate(session.date)}</span>
+                        <span className="session-card-count">{session.rawShots.length} shot{session.rawShots.length !== 1 ? 's' : ''}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               {visibleCount < sessions.length && (
                 <div className="gallery-pagination">

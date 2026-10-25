@@ -1435,6 +1435,44 @@ app.whenReady().then(() => {
     return { deletedFiles };
   });
 
+  ipcMain.handle('delete-sessions', async (event, sessionIds) => {
+    if (!Array.isArray(sessionIds)) {
+      throw new Error('Invalid session IDs.');
+    }
+
+    const files = fs.readdirSync(OUTPUT_DIR);
+    let totalDeleted = 0;
+
+    for (const sessionId of sessionIds) {
+      if (typeof sessionId !== 'string' || !sessionId || sessionId !== path.basename(sessionId)) continue;
+
+      const stripFilename = `strip_${sessionId}.jpg`;
+      const stripPath = path.join(OUTPUT_DIR, stripFilename);
+      const rawFiles = getRawFilesForSession(sessionId, stripPath);
+      const thumbFilename = `thumb_${sessionId}.jpg`;
+      const loopFilename = `loop_${sessionId}.gif`;
+
+      const matchingFiles = new Set([
+        stripFilename,
+        thumbFilename,
+        loopFilename,
+        ...rawFiles,
+        ...files.filter(filename => filename.includes(sessionId))
+      ]);
+
+      for (const filename of matchingFiles) {
+        const filePath = path.join(OUTPUT_DIR, filename);
+        if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+          try {
+            fs.unlinkSync(filePath);
+            totalDeleted++;
+          } catch (_) {}
+        }
+      }
+    }
+    return { success: true, count: totalDeleted };
+  });
+
   // ── get-file-as-dataurl (kept for lightbox fallback) ────────────────────────
   ipcMain.handle('get-file-as-dataurl', async (event, filename) => {
     const safeName = path.basename(filename);

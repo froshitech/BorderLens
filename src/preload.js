@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Gallery ────────────────────────────────────────────────────────────────
   listSessions:    ()         => ipcRenderer.invoke('list-sessions'),
   deleteSession:   (sessionId) => ipcRenderer.invoke('delete-session', sessionId),
+  deleteSessions:  (sessionIds) => ipcRenderer.invoke('delete-sessions', sessionIds),
   getFileAsDataUrl:(filename) => ipcRenderer.invoke('get-file-as-dataurl', filename),
   getBuiltinTemplates: ()     => ipcRenderer.invoke('get-builtin-templates'),
   getSettings:          ()     => ipcRenderer.invoke('get-settings'),
