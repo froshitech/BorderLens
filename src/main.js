@@ -442,7 +442,7 @@ function getCloudAttachmentUrl(url) {
 
 function buildCloudViewerUrl({ stripUrl, rawUrls, boomerangUrl }) {
   const viewer = (cloudConfig.viewerUrl || '').trim();
-  if (!viewer || viewer.includes('borderlens-sigma.vercel.app')) {
+  if (!viewer) {
     return getCloudAttachmentUrl(stripUrl);
   }
   const separator = viewer.includes('?') ? '&' : '?';
