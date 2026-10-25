@@ -81,7 +81,7 @@ function TemplateCard({ template, isSelected, onSelect }) {
   );
 }
 
-export default function TemplateSelect({ templates, selectedTemplate, onSelect, onContinue }) {
+export default function TemplateSelect({ templates, selectedTemplate, onSelect, onContinue, onOpenEditor }) {
   const count = templates.length;
   const isSingleRow = count <= 5;
 
@@ -91,16 +91,31 @@ export default function TemplateSelect({ templates, selectedTemplate, onSelect, 
         <h2 className="tpl-screen-title">Choose Your Template</h2>
         <p className="tpl-screen-sub">Pick the frame design for your photo strip</p>
       </div>
-      <div className={`tpl-grid ${isSingleRow ? 'tpl-grid--single-row' : 'tpl-grid--multi-row'}`}>
-        {templates.map(template => (
-          <TemplateCard
-            key={template.id}
-            template={template}
-            isSelected={selectedTemplate?.id === template.id}
-            onSelect={onSelect}
-          />
-        ))}
-      </div>
+      {count === 0 ? (
+        <div className="tpl-empty-state" style={{ textAlign: 'center', padding: '3.5rem 1rem', background: 'var(--card-bg, #1a1c23)', borderRadius: '16px', border: '1px solid var(--border-color, rgba(255,255,255,0.08))', maxWidth: '480px', margin: '2rem auto' }}>
+          <p style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-main, #ffffff)' }}>No Templates Added Yet</p>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #9ca3af)', marginBottom: '1.5rem', lineHeight: '1.5' }}>
+            Import your custom PNG frame overlays or design cutouts in the Template Editor to start.
+          </p>
+          {onOpenEditor && (
+            <button type="button" className="cta-btn" onClick={onOpenEditor} style={{ margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span>Open Template Editor</span>
+              <AltArrowRightLinearIcon size={16} />
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className={`tpl-grid ${isSingleRow ? 'tpl-grid--single-row' : 'tpl-grid--multi-row'}`}>
+          {templates.map(template => (
+            <TemplateCard
+              key={template.id}
+              template={template}
+              isSelected={selectedTemplate?.id === template.id}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      )}
       {selectedTemplate && (
         <div className="tpl-action-bar">
           <div>

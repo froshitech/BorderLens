@@ -828,6 +828,64 @@ export default function useBooth() {
     generateStrip(rawFrames, sessionTs);
   };
 
+  const [cloudConfigForm, setCloudConfigForm] = useState({
+    cloudName: '',
+    apiKey: '',
+    apiSecret: '',
+    viewerUrl: 'https://froshitech.github.io/BorderLens/viewer.html',
+    hasSecret: false,
+    isConfigured: false,
+  });
+
+  useEffect(() => {
+    window.electronAPI?.getCloudConfig?.()
+      .then(cfg => {
+        if (cfg) {
+          setCloudConfigForm(prev => ({
+            ...prev,
+            cloudName: cfg.cloudName || '',
+            apiKey: cfg.apiKey || '',
+            hasSecret: Boolean(cfg.hasSecret),
+            viewerUrl: cfg.viewerUrl || 'https://froshitech.github.io/BorderLens/viewer.html',
+            isConfigured: Boolean(cfg.isConfigured),
+          }));
+        }
+      })
+      .catch(() => {});
+  }, [step]);
+
+  const handleSaveCloudConfig = async (formData) => {
+    const res = await window.electronAPI.saveCloudConfig(formData);
+    const updatedStatus = await window.electronAPI.getCloudStatus();
+    setCloudStatus(updatedStatus);
+    const cfg = await window.electronAPI.getCloudConfig();
+    if (cfg) {
+      setCloudConfigForm(prev => ({
+        ...prev,
+        cloudName: cfg.cloudName || '',
+        apiKey: cfg.apiKey || '',
+        hasSecret: Boolean(cfg.hasSecret),
+        viewerUrl: cfg.viewerUrl || 'https://froshitech.github.io/BorderLens/viewer.html',
+        isConfigured: Boolean(cfg.isConfigured),
+      }));
+    }
+    return res;
+  };
+
+  const handleResetCloudConfig = async () => {
+    await window.electronAPI.resetCloudConfig();
+    const updatedStatus = await window.electronAPI.getCloudStatus();
+    setCloudStatus(updatedStatus);
+    setCloudConfigForm({
+      cloudName: '',
+      apiKey: '',
+      apiSecret: '',
+      viewerUrl: 'https://froshitech.github.io/BorderLens/viewer.html',
+      hasSecret: false,
+      isConfigured: false,
+    });
+  };
+
   const testCloudConnection = async () => {
     try {
       const result = await window.electronAPI.testAndCleanupCloud();
@@ -855,6 +913,7 @@ export default function useBooth() {
     setOutputDir, setDigiCamControlPath, setDigiCamControlAvailable, setSelectedPrinter, setMode, setSelectedDeviceId, setMirror, setShotOverride, setCountdownDuration, setFlashEnabled,
     setError, setActiveFilter, closeSettings, changeTheme, selectOutputFolder, openOutputFolder, selectDigiCamControl,
     handleFilterChange, handleGenerateStrip, cloudQrMode, setCloudQrMode, cloudStatus, testCloudConnection,
+    cloudConfigForm, handleSaveCloudConfig, handleResetCloudConfig,
     stopWebcam, stopAllMediaStreams,
   };
 }

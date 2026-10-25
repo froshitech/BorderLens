@@ -59,6 +59,7 @@ server.use((req, res, next) => {
 
 function getRemoteHtmlPath() {
   const candidates = [
+    path.join(process.resourcesPath || '', 'public', 'remote.html'),
     path.join(__dirname, 'public', 'remote.html'),
     path.join(__dirname, '../public', 'remote.html'),
     path.join(__dirname, '../../src/public', 'remote.html'),
@@ -362,6 +363,27 @@ function configurePaths() {
 }
 
 function loadCloudEnvironment() {
+  // 1. First check if user saved cloud credentials via the in-app Settings UI
+  if (CLOUD_CONFIG_FILE && fs.existsSync(CLOUD_CONFIG_FILE)) {
+    try {
+      const saved = JSON.parse(fs.readFileSync(CLOUD_CONFIG_FILE, 'utf8'));
+      if (saved && (saved.cloudName || saved.apiKey || saved.apiSecret)) {
+        cloudConfig = {
+          cloudName: cleanCloudValue(saved.cloudName),
+          apiKey: cleanCloudValue(saved.apiKey),
+          apiSecret: cleanCloudValue(saved.apiSecret),
+          viewerUrl: cleanCloudValue(saved.viewerUrl) || 'https://froshitech.github.io/BorderLens/viewer.html',
+          hasExplicitCredentials: Boolean(saved.cloudName && saved.apiKey && saved.apiSecret),
+          hasUrl: false,
+        };
+        return;
+      }
+    } catch (err) {
+      console.warn('[cloud] Failed to read cloud-config.json:', err.message);
+    }
+  }
+
+  // 2. Fallback to local .env file (for development or portable deployment)
   const envPaths = [
     path.resolve(process.cwd(), '.env'),
     path.resolve(__dirname, '../../.env'),
@@ -374,12 +396,11 @@ function loadCloudEnvironment() {
     dotenv.config({ path: envPath, override: true });
     const env = dotenv.parse(fs.readFileSync(envPath, 'utf8'));
     console.log('[cloud] Loaded .env from:', envPath);
-    console.log('[cloud] Parsed .env keys:', Object.keys(env));
     cloudConfig = {
       cloudName: cleanCloudValue(env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME),
       apiKey: cleanCloudValue(env.CLOUDINARY_API_KEY || process.env.CLOUDINARY_API_KEY),
       apiSecret: cleanCloudValue(env.CLOUDINARY_API_SECRET || process.env.CLOUDINARY_API_SECRET),
-      viewerUrl: cleanCloudValue(env.CLOUDINARY_VIEWER_URL || process.env.CLOUDINARY_VIEWER_URL),
+      viewerUrl: cleanCloudValue(env.CLOUDINARY_VIEWER_URL || process.env.CLOUDINARY_VIEWER_URL) || 'https://froshitech.github.io/BorderLens/viewer.html',
       hasExplicitCredentials: Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET),
       hasUrl: Boolean(env.CLOUDINARY_URL || process.env.CLOUDINARY_URL),
     };
@@ -388,11 +409,11 @@ function loadCloudEnvironment() {
       cloudName: cleanCloudValue(process.env.CLOUDINARY_CLOUD_NAME),
       apiKey: cleanCloudValue(process.env.CLOUDINARY_API_KEY),
       apiSecret: cleanCloudValue(process.env.CLOUDINARY_API_SECRET),
-      viewerUrl: cleanCloudValue(process.env.CLOUDINARY_VIEWER_URL),
+      viewerUrl: cleanCloudValue(process.env.CLOUDINARY_VIEWER_URL) || 'https://froshitech.github.io/BorderLens/viewer.html',
       hasExplicitCredentials: Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET),
       hasUrl: Boolean(process.env.CLOUDINARY_URL),
     };
-    console.warn('[cloud] no local .env file found');
+    console.warn('[cloud] no local cloud credentials found');
   }
 }
 
@@ -961,10 +982,63 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle('get-cloud-config', () => {
+    loadCloudEnvironment();
+    configureCloudinary();
+    return {
+      cloudName: cloudConfig.cloudName || '',
+      apiKey: cloudConfig.apiKey || '',
+      hasSecret: Boolean(cloudConfig.apiSecret),
+      viewerUrl: cloudConfig.viewerUrl || 'https://froshitech.github.io/BorderLens/viewer.html',
+      isConfigured: cloudClientConfigured,
+    };
+  });
+
+  ipcMain.handle('save-cloud-config', async (event, config) => {
+    if (!config || typeof config !== 'object') throw new Error('Invalid cloud config');
+    const cloudName = cleanCloudValue(config.cloudName);
+    const apiKey = cleanCloudValue(config.apiKey);
+    let apiSecret = cleanCloudValue(config.apiSecret);
+    if (!apiSecret && cloudConfig.apiSecret) {
+      apiSecret = cloudConfig.apiSecret;
+    }
+    const viewerUrl = cleanCloudValue(config.viewerUrl) || 'https://froshitech.github.io/BorderLens/viewer.html';
+
+    const toSave = { cloudName, apiKey, apiSecret, viewerUrl };
+    fs.mkdirSync(path.dirname(CLOUD_CONFIG_FILE), { recursive: true });
+    fs.writeFileSync(CLOUD_CONFIG_FILE, JSON.stringify(toSave, null, 2), { mode: 0o600 });
+
+    loadCloudEnvironment();
+    configureCloudinary();
+
+    if (!cloudClientConfigured) {
+      return { success: false, online: false, reason: 'Please provide Cloud Name, API Key, and API Secret.' };
+    }
+
+    try {
+      await cloudinary.api.ping();
+      return { success: true, online: true, message: 'Cloudinary connected successfully!' };
+    } catch (err) {
+      const details = logCloudError('test-saved-credentials', err);
+      return { success: false, online: false, reason: details.message };
+    }
+  });
+
+  ipcMain.handle('reset-cloud-config', () => {
+    try {
+      if (CLOUD_CONFIG_FILE && fs.existsSync(CLOUD_CONFIG_FILE)) {
+        fs.unlinkSync(CLOUD_CONFIG_FILE);
+      }
+    } catch (_) {}
+    loadCloudEnvironment();
+    configureCloudinary();
+    return { success: true };
+  });
+
   ipcMain.handle('test-and-cleanup-cloud', async () => {
     loadCloudEnvironment();
     configureCloudinary();
-    if (!cloudClientConfigured) return { configured: false, online: false, reason: 'Missing local .env credentials.' };
+    if (!cloudClientConfigured) return { configured: false, online: false, reason: 'Missing Cloudinary credentials. Please configure them in Settings below.' };
     try {
       await cloudinary.api.ping();
       const cleanup = await cleanupExpiredCloudSessions();

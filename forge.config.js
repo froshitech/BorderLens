@@ -7,6 +7,9 @@ module.exports = {
     asar: {
       unpack: '**/{sharp,@img}/**/*',
     },
+    extraResource: [
+      './public',
+    ],
   },
   rebuildConfig: {},
   makers: [

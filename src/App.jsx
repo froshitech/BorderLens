@@ -33,6 +33,7 @@ const App = () => {
     handleNewSession, sessions, sessionsLoading, formatDate, handleDeleteSession, outputDir, digiCamControlPath, digiCamControlAvailable,
     printers, selectedPrinter, mode, devices, selectedDeviceId, mirror, shotOverride, countdownDuration, flashEnabled, builtinTemplates, hiddenBuiltins, customTemplates,
     activeTheme, customAccent, setActiveTheme, setCustomAccent, setCountdownDuration, setFlashEnabled, cloudQrMode, setCloudQrMode, cloudStatus, testCloudConnection, saveCustomTemplate, handlePickCustomTemplate, handleRemoveCustomTemplate,
+    cloudConfigForm, handleSaveCloudConfig, handleResetCloudConfig,
     toggleBuiltin, toggleCustomTemplate, updateCustomTemplateLayout, updateCustomTemplateSlots, updateCustomTemplateFitMode, addCustomTemplateSlot, deleteCustomTemplateSlot, detectCustomTemplateSlots, openTemplateEditor, closeTemplateEditor, editorTemplate, allTemplates, handleTemplateSelect, allVisibleTpls, videoRef, isStreamReady, isCapturing, isCounting,
     countdown, shotCount, capturedCount, currentShotIdx, captureDisabled, handleBackToTemplates, handleTakePhoto, switchDevice, error, retakingIdx,
     isRetaking, autoProceedSec, handleRetakeSingleShot, templateThumbSrc, templateInfo, clearAutoProceed, startAutoProceed, generateStrip, sessionTs,
@@ -93,10 +94,11 @@ const App = () => {
       {step === 'SETTINGS' ? (
         <Suspense fallback={<ViewLoading />}>
           <SettingsView
-            outputDir={outputDir} digiCamControlPath={digiCamControlPath} digiCamControlAvailable={digiCamControlAvailable} printers={printers} selectedPrinter={selectedPrinter} mode={mode} devices={devices} selectedDeviceId={selectedDeviceId} mirror={mirror} shotOverride={shotOverride} countdownDuration={countdownDuration} flashEnabled={flashEnabled} builtinTemplates={builtinTemplates} hiddenBuiltins={hiddenBuiltins} customTemplates={customTemplates} isPrinting={isPrinting} canTestPrint={Boolean(resultFilename || (activeSession && activeSession.stripFilename))}
+            outputDir={outputDir} digiCamControlPath={digiCamControlPath} digiCamControlAvailable={digiCamControlAvailable} printers={printers} selectedPrinter={selectedPrinter} mode={mode} devices={devices} selectedDeviceId={selectedDeviceId} mirror={mirror} shotOverride={shotOverride} countdownDuration={countdownDuration} flashEnabled={flashEnabled} builtinTemplates={builtinTemplates} hiddenBuiltins={hiddenBuiltins} customTemplates={customTemplates} allVisibleTpls={allVisibleTpls} isPrinting={isPrinting} canTestPrint={Boolean(resultFilename || (activeSession && activeSession.stripFilename))}
             onSelectOutput={selectOutputFolder} onOpenOutput={openOutputFolder} onSelectDigi={selectDigiCamControl}
             themes={themes} activeTheme={activeTheme} customAccent={customAccent} onThemeChange={changeTheme} onAccentChange={setCustomAccent}
             cloudQrMode={cloudQrMode} cloudStatus={cloudStatus} onCloudQrModeChange={setCloudQrMode} onTestCloud={testCloudConnection}
+            cloudConfigForm={cloudConfigForm} onSaveCloudConfig={handleSaveCloudConfig} onResetCloudConfig={handleResetCloudConfig}
             onPrinterChange={setSelectedPrinter} onSavePrinter={handlePrinterSave} onTestPrint={handlePrinterTest} onModeChange={setMode} onDeviceChange={switchDevice} onMirrorChange={setMirror} onShotOverride={setShotOverride} onCountdownDuration={setCountdownDuration} onFlashChange={setFlashEnabled} onOpenVisualEditor={openTemplateEditor} onBack={closeSettings}
           />
         </Suspense>
@@ -106,7 +108,7 @@ const App = () => {
         </Suspense>
       ) : (
         <div className={'content ' + (hideNavbar ? 'content--fullscreen' : '')}>
-          {step === 'TEMPLATE_SELECTION' && <TemplateSelect templates={allVisibleTpls} selectedTemplate={selectedTemplate} onSelect={handleTemplateSelect} onContinue={() => setStep('LIVE_VIEW')} />}
+          {step === 'TEMPLATE_SELECTION' && <TemplateSelect templates={allVisibleTpls} selectedTemplate={selectedTemplate} onSelect={handleTemplateSelect} onContinue={() => setStep('LIVE_VIEW')} onOpenEditor={openTemplateEditor} />}
           {step === 'LIVE_VIEW' && <CameraView mode={mode} videoRef={videoRef} mirror={mirror} isStreamReady={isStreamReady} isCapturing={isCapturing} isCounting={isCounting} countdown={countdown} shotCount={shotCount} capturedCount={capturedCount} currentShotIdx={currentShotIdx} retakingIdx={retakingIdx} captureDisabled={captureDisabled} onStart={handleTakePhoto} onBack={handleBackToTemplates} error={error} rawFrames={rawFrames} />}
           {step === 'REVIEW_SHOTS' && <ReviewView rawFrames={rawFrames} activeFilter={activeFilter} activeCss={activeCss} retakingIdx={retakingIdx} isRetaking={isRetaking} isProcessing={isProcessing} templateThumbSrc={templateThumbSrc} templateInfo={{ ...templateInfo, slots: selectedTemplate?.slots || templateInfo?.slots }} fitMode={selectedTemplate?.fitMode || 'cover'} templateLayoutMode={selectedTemplate?.layoutMode || selectedTemplate?.orientation} shotCount={shotCount} autoProceedSec={autoProceedSec} onRetake={handleRetakeSingleShot} onFilter={handleFilterChange} onGenerate={handleGenerateStrip} error={error} />}
           {step === 'RESULT' && <ResultView resultPhotoUrl={resultPhotoUrl} resultShareUrl={resultShareUrl} resultLoopUrl={resultLoopUrl} rawFrames={rawFrames} activeCss={activeCss} template={selectedTemplate} resultFilename={resultFilename} isPrinting={isPrinting} onPrint={handlePrint} onNewSession={handleNewSession} onLightbox={openLightbox} cloudQrMode={cloudQrMode} />}

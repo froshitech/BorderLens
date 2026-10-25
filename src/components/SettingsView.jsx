@@ -26,6 +26,8 @@ import {
   WiFiHighLinearIcon,
   CloudLinearIcon,
   RefreshCircleLinearIcon,
+  EyeLinearIcon,
+  EyeClosedLinearIcon,
 } from '@solar-icons/react';
 
 const TABS = [
@@ -41,14 +43,94 @@ export default function SettingsView({
   themes = {}, activeTheme, customAccent, onThemeChange, onAccentChange,
   outputDir, digiCamControlPath, digiCamControlAvailable, printers = [], selectedPrinter,
   mode, devices = [], selectedDeviceId, mirror, shotOverride, countdownDuration, flashEnabled,
-  builtinTemplates = [], hiddenBuiltins = [], customTemplates = [],
+  builtinTemplates = [], hiddenBuiltins = [], customTemplates = [], allVisibleTpls = [],
   isPrinting, canTestPrint, onSelectOutput, onOpenOutput, onSelectDigi,
   cloudQrMode, cloudStatus, onCloudQrModeChange, onTestCloud,
+  cloudConfigForm, onSaveCloudConfig, onResetCloudConfig,
   onPrinterChange, onSavePrinter, onTestPrint, onModeChange, onDeviceChange, onMirrorChange,
   onShotOverride, onCountdownDuration, onFlashChange, onOpenVisualEditor, onBack,
 }) {
   const [activeTab, setActiveTab] = useState('appearance');
   const [remoteUrl, setRemoteUrl] = useState('');
+  const [cloudForm, setCloudForm] = useState({
+    cloudName: cloudConfigForm?.cloudName || '',
+    apiKey: cloudConfigForm?.apiKey || '',
+    apiSecret: '',
+    viewerUrl: cloudConfigForm?.viewerUrl || 'https://froshitech.github.io/BorderLens/viewer.html',
+  });
+  const [cloudStatusMsg, setCloudStatusMsg] = useState(null);
+  const [isSavingCloud, setIsSavingCloud] = useState(false);
+  const [showCloudName, setShowCloudName] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showApiSecret, setShowApiSecret] = useState(false);
+
+  const maskCloudName = (name) => {
+    if (!name) return 'Configured';
+    if (showCloudName) return name;
+    if (name.length <= 4) return '••••';
+    return `${name.slice(0, 2)}••••${name.slice(-2)}`;
+  };
+
+  useEffect(() => {
+    if (cloudConfigForm) {
+      setCloudForm(prev => ({
+        ...prev,
+        cloudName: cloudConfigForm.cloudName || '',
+        apiKey: cloudConfigForm.apiKey || '',
+        viewerUrl: cloudConfigForm.viewerUrl || 'https://froshitech.github.io/BorderLens/viewer.html',
+      }));
+    }
+  }, [cloudConfigForm]);
+
+  const handleSaveCredentials = async (e) => {
+    e?.preventDefault?.();
+    setIsSavingCloud(true);
+    setCloudStatusMsg(null);
+    try {
+      const res = await onSaveCloudConfig?.({
+        cloudName: cloudForm.cloudName.trim(),
+        apiKey: cloudForm.apiKey.trim(),
+        apiSecret: cloudForm.apiSecret ? cloudForm.apiSecret.trim() : undefined,
+        viewerUrl: cloudForm.viewerUrl.trim(),
+      });
+      if (res?.ok) {
+        setCloudStatusMsg({ type: 'success', text: `Saved & Verified! Connected to Cloudinary (${maskCloudName(res.cloudName)}).` });
+        setCloudForm(prev => ({ ...prev, apiSecret: '' }));
+        setShowCloudName(false);
+        setShowApiKey(false);
+        setShowApiSecret(false);
+      } else {
+        setCloudStatusMsg({ type: 'error', text: `Verification failed: ${res?.error || 'Unknown error'}` });
+      }
+    } catch (err) {
+      setCloudStatusMsg({ type: 'error', text: `Save error: ${err.message}` });
+    } finally {
+      setIsSavingCloud(false);
+    }
+  };
+
+  const handleResetCredentials = async () => {
+    if (!window.confirm('Reset Cloudinary credentials and revert to default settings?')) return;
+    setIsSavingCloud(true);
+    setCloudStatusMsg(null);
+    try {
+      await onResetCloudConfig?.();
+      setCloudForm({
+        cloudName: '',
+        apiKey: '',
+        apiSecret: '',
+        viewerUrl: 'https://froshitech.github.io/BorderLens/viewer.html',
+      });
+      setShowCloudName(false);
+      setShowApiKey(false);
+      setShowApiSecret(false);
+      setCloudStatusMsg({ type: 'success', text: 'Cloud credentials removed. Local Wi-Fi QR mode will be used.' });
+    } catch (err) {
+      setCloudStatusMsg({ type: 'error', text: `Reset error: ${err.message}` });
+    } finally {
+      setIsSavingCloud(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -58,7 +140,9 @@ export default function SettingsView({
     return () => { active = false; };
   }, []);
 
-  const totalVisibleTemplates = (builtinTemplates.length - (hiddenBuiltins?.length || 0)) + (customTemplates?.filter(t => t.enabled !== false)?.length || 0);
+  const totalVisibleTemplates = Array.isArray(allVisibleTpls) && allVisibleTpls.length > 0
+    ? allVisibleTpls.length
+    : (builtinTemplates.filter(t => !hiddenBuiltins?.includes(t.id)).length + (customTemplates?.filter(t => t.enabled !== false)?.length || 0));
 
   return (
     <div className="settings-dashboard">
@@ -376,7 +460,7 @@ export default function SettingsView({
               <section className="settings-section">
                 <h3>Visual Template Editor Workspace</h3>
                 <p className="settings-hint">
-                  Open the full-screen visual canvas to drag-and-drop transparent photo slots, auto-detect cutout regions, import custom PNG overlays, and set orientation.
+                  Open the full-screen visual canvas to transparent photo slots, auto-detect cutout regions, import custom PNG overlays, and set orientation.
                 </p>
                 <div style={{ marginTop: '0.5rem' }}>
                   <button
@@ -393,10 +477,6 @@ export default function SettingsView({
               <section className="settings-section">
                 <h3>Template Library Summary</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', margin: '0.5rem 0' }}>
-                  <div style={{ padding: '1rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent)' }}>{builtinTemplates.length}</span>
-                    <p style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Built-in Studio Templates</p>
-                  </div>
                   <div style={{ padding: '1rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                     <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981' }}>{customTemplates.length}</span>
                     <p style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Custom Imported Overlays</p>
@@ -428,7 +508,7 @@ export default function SettingsView({
                   <SmartphoneLinearIcon size={18} /> Remote Mobile Shutter Control
                 </h3>
                 <p className="settings-hint">
-                  Attendants or guests can scan this QR code with any phone connected to the same Wi-Fi network to select templates and trigger the countdown hands-free.
+                  only ITSC should scan this QR code with any phone connected to the same Wi-Fi network to select templates and trigger the countdown hands-free.
                 </p>
                 {remoteUrl ? (
                   <div className="remote-shutter-qr-card">
@@ -455,7 +535,7 @@ export default function SettingsView({
                   <CloudLinearIcon size={18} /> Cloud QR Sharing (Cloudinary)
                 </h3>
                 <p className="settings-hint">
-                  Allows guests on mobile 4G/5G data to immediately download full-resolution photos and boomerang GIFs without connecting to the booth Wi-Fi.
+                  Allows guests on mobile 4G/5G cellular data to immediately download full-resolution photos, raw shots, and boomerang GIFs by scanning a QR code without connecting to the booth's local Wi-Fi.
                 </p>
                 <div className="settings-pill-group" role="group" aria-label="QR sharing mode">
                   <button
@@ -476,20 +556,173 @@ export default function SettingsView({
                   </button>
                 </div>
 
-                <p className={`settings-hint ${cloudStatus?.configured && cloudStatus?.online ? 'settings-hint--success' : 'settings-hint--error'}`}>
-                  {cloudStatus?.configured && cloudStatus?.online
-                    ? '✅ Cloud Service Connected & Verified (Automatic 7-day retention)'
-                    : '⚠️ Missing .env credentials or offline — booth defaults to Local Wi-Fi fallback'}
-                </p>
+                <div style={{
+                  padding: '0.75rem 1rem',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-elevated)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.5rem',
+                  flexWrap: 'wrap',
+                }}>
+                  <div>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: cloudStatus?.configured && cloudStatus?.online ? '#10b981' : '#f59e0b' }}>
+                      {cloudStatus?.configured && cloudStatus?.online
+                        ? `✅ Cloud Service Active (${maskCloudName(cloudConfigForm?.cloudName)})`
+                        : '⚠️ Cloud Credentials Not Configured / Offline'}
+                    </span>
+                    <p style={{ margin: '0.15rem 0 0', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                      {cloudStatus?.configured && cloudStatus?.online
+                        ? 'Photos and GIFs auto-upload with 7-day retention. Viewer page is ready.'
+                        : 'Booth will automatically fallback to Local Wi-Fi QR code mode for guests.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="settings-add-btn"
+                    onClick={onTestCloud}
+                    style={{ margin: 0, padding: '0.4rem 0.75rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <RefreshCircleLinearIcon size={14} /> Test Connection &amp; Purge Expired
+                  </button>
+                </div>
 
-                <button
-                  type="button"
-                  className="settings-add-btn"
-                  onClick={onTestCloud}
-                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}
-                >
-                  <RefreshCircleLinearIcon size={16} /> Test Cloud Connection &amp; Purge Expired Files
-                </button>
+                {cloudStatusMsg && (
+                  <p className={`settings-hint ${cloudStatusMsg.type === 'success' ? 'settings-hint--success' : 'settings-hint--error'}`} style={{ margin: '0.25rem 0' }}>
+                    {cloudStatusMsg.text}
+                  </p>
+                )}
+
+                <form onSubmit={handleSaveCredentials} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.4rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                        Cloud Name *
+                      </label>
+                      <div className="settings-input-wrap">
+                        <input
+                          type={showCloudName ? 'text' : 'password'}
+                          className="settings-input"
+                          placeholder="e.g. my-photobooth"
+                          value={cloudForm.cloudName}
+                          onChange={e => setCloudForm(f => ({ ...f, cloudName: e.target.value }))}
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="settings-input-eye-btn"
+                          onClick={() => setShowCloudName(v => !v)}
+                          aria-label={showCloudName ? "Hide Cloud Name" : "Show Cloud Name"}
+                          title={showCloudName ? "Hide Cloud Name" : "Show Cloud Name"}
+                        >
+                          {showCloudName ? <EyeClosedLinearIcon size={18} /> : <EyeLinearIcon size={18} />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                        API Key *
+                      </label>
+                      <div className="settings-input-wrap">
+                        <input
+                          type={showApiKey ? 'text' : 'password'}
+                          className="settings-input"
+                          placeholder="e.g. 123456789012345"
+                          value={cloudForm.apiKey}
+                          onChange={e => setCloudForm(f => ({ ...f, apiKey: e.target.value }))}
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="settings-input-eye-btn"
+                          onClick={() => setShowApiKey(v => !v)}
+                          aria-label={showApiKey ? "Hide API Key" : "Show API Key"}
+                          title={showApiKey ? "Hide API Key" : "Show API Key"}
+                        >
+                          {showApiKey ? <EyeClosedLinearIcon size={18} /> : <EyeLinearIcon size={18} />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                      API Secret * {cloudConfigForm?.hasSecret && <span style={{ color: '#10b981', fontWeight: 500 }}>(Already saved securely)</span>}
+                    </label>
+                    <div className="settings-input-wrap">
+                      <input
+                        type={showApiSecret ? 'text' : 'password'}
+                        className="settings-input"
+                        placeholder={cloudConfigForm?.hasSecret ? '•••••••••••••••• (Leave blank to keep existing)' : 'Enter Cloudinary API Secret'}
+                        value={cloudForm.apiSecret}
+                        onChange={e => setCloudForm(f => ({ ...f, apiSecret: e.target.value }))}
+                        required={!cloudConfigForm?.hasSecret}
+                      />
+                      <button
+                        type="button"
+                        className="settings-input-eye-btn"
+                        onClick={() => setShowApiSecret(v => !v)}
+                        aria-label={showApiSecret ? "Hide API Secret" : "Show API Secret"}
+                        title={showApiSecret ? "Hide API Secret" : "Show API Secret"}
+                      >
+                        {showApiSecret ? <EyeClosedLinearIcon size={18} /> : <EyeLinearIcon size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                      Viewer Web URL
+                    </label>
+                    <input
+                      type="url"
+                      className="settings-input"
+                      placeholder="https://froshitech.github.io/BorderLens/viewer.html"
+                      value={cloudForm.viewerUrl}
+                      onChange={e => setCloudForm(f => ({ ...f, viewerUrl: e.target.value }))}
+                    />
+                    <small style={{ color: 'var(--text-hint)', fontSize: '0.72rem' }}>
+                      Hosted web landing page that downloads and displays the photos from Cloudinary.
+                    </small>
+                  </div>
+
+                  <div className="settings-pill-group" style={{ marginTop: '0.25rem' }}>
+                    <button
+                      type="submit"
+                      className="settings-add-btn"
+                      disabled={isSavingCloud || !cloudForm.cloudName || !cloudForm.apiKey || (!cloudForm.apiSecret && !cloudConfigForm?.hasSecret)}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}
+                    >
+                      <DisketteLinearIcon size={16} /> {isSavingCloud ? 'Saving & Verifying...' : 'Save & Verify Cloud Credentials'}
+                    </button>
+
+                    {cloudConfigForm?.isConfigured && (
+                      <button
+                        type="button"
+                        className="settings-add-btn"
+                        onClick={handleResetCredentials}
+                        disabled={isSavingCloud}
+                        style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                      >
+                        Remove Saved Credentials
+                      </button>
+                    )}
+                  </div>
+                </form>
+
+                <div style={{ padding: '0.75rem 1rem', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border)', marginTop: '0.5rem' }}>
+                  <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    💡 How to get free Cloudinary credentials for portable distribution:
+                  </h4>
+                  <ol style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: '1.55' }}>
+                    <li>Sign up for a free account at <strong>cloudinary.com</strong> (free tier provides 25GB monthly storage &amp; bandwidth).</li>
+                    <li>Go to your <strong>Cloudinary Dashboard &gt; Settings &gt; API Keys</strong>.</li>
+                    <li>Copy your <strong>Cloud Name</strong>, <strong>API Key</strong>, and <strong>API Secret</strong> into the fields above and click Save.</li>
+                    <li>Settings are securely saved to your local user data directory (<code style={{ color: 'var(--accent)' }}>cloud-config.json</code>) and persist across app updates without requiring a <code style={{ color: 'var(--accent)' }}>.env</code> file!</li>
+                  </ol>
+                </div>
               </section>
             </>
           )}

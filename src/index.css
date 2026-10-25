@@ -691,16 +691,51 @@ html, body {
   color: #fff; box-shadow: 0 3px 10px rgba(124,131,253,0.35);
 }
 
-.settings-select {
+.settings-select,
+.settings-input {
   width: 100%;
   background: var(--bg-elevated);
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-family: var(--font); font-size: 0.9rem;
-  padding: 0.55rem 1rem; outline: none; appearance: none; cursor: pointer;
+  padding: 0.55rem 1rem; outline: none; appearance: none;
+  box-sizing: border-box;
 }
-.settings-select:focus { border-color: var(--accent); }
+.settings-select { cursor: pointer; }
+.settings-select:focus,
+.settings-input:focus { border-color: var(--accent); }
+
+.settings-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.settings-input-wrap .settings-input {
+  padding-right: 2.5rem;
+}
+.settings-input-eye-btn {
+  position: absolute;
+  right: 0.45rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+.settings-input-eye-btn:hover {
+  color: var(--text-primary);
+}
+
+
 
 .camera-source-controls { margin-bottom: 0.8rem; }
 .camera-source-mode-group {
