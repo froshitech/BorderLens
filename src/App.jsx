@@ -38,6 +38,7 @@ const App = () => {
     countdown, shotCount, capturedCount, currentShotIdx, captureDisabled, handleBackToTemplates, handleTakePhoto, switchDevice, error, retakingIdx,
     isRetaking, autoProceedSec, handleRetakeSingleShot, templateThumbSrc, templateInfo, clearAutoProceed, startAutoProceed, generateStrip, sessionTs,
     handlePrinterSave, handlePrinterTest, setSelectedPrinter, setMode, setSelectedDeviceId, setMirror, setShotOverride,
+    paperType, setPaperType, printQuality, setPrintQuality, stripLayout, setStripLayout, silentPrint, setSilentPrint, handleOpenPrinterPreferences,
     setError, setActiveFilter, closeSettings, changeTheme, selectOutputFolder, openOutputFolder, selectDigiCamControl,
     handleFilterChange, handleGenerateStrip,
   } = useBooth();
@@ -99,7 +100,9 @@ const App = () => {
             themes={themes} activeTheme={activeTheme} customAccent={customAccent} onThemeChange={changeTheme} onAccentChange={setCustomAccent}
             cloudQrMode={cloudQrMode} cloudStatus={cloudStatus} onCloudQrModeChange={setCloudQrMode} onTestCloud={testCloudConnection}
             cloudConfigForm={cloudConfigForm} onSaveCloudConfig={handleSaveCloudConfig} onResetCloudConfig={handleResetCloudConfig}
-            onPrinterChange={setSelectedPrinter} onSavePrinter={handlePrinterSave} onTestPrint={handlePrinterTest} onModeChange={setMode} onDeviceChange={switchDevice} onMirrorChange={setMirror} onShotOverride={setShotOverride} onCountdownDuration={setCountdownDuration} onFlashChange={setFlashEnabled} onOpenVisualEditor={openTemplateEditor} onBack={closeSettings}
+            onPrinterChange={setSelectedPrinter} onSavePrinter={handlePrinterSave} onTestPrint={handlePrinterTest}
+            paperType={paperType} onPaperTypeChange={setPaperType} printQuality={printQuality} onPrintQualityChange={setPrintQuality} stripLayout={stripLayout} onStripLayoutChange={setStripLayout} silentPrint={silentPrint} onSilentPrintChange={setSilentPrint} onOpenPrinterPreferences={handleOpenPrinterPreferences}
+            onModeChange={setMode} onDeviceChange={switchDevice} onMirrorChange={setMirror} onShotOverride={setShotOverride} onCountdownDuration={setCountdownDuration} onFlashChange={setFlashEnabled} onOpenVisualEditor={openTemplateEditor} onBack={closeSettings}
           />
         </Suspense>
       ) : step === 'TEMPLATE_EDITOR' ? (
@@ -111,10 +114,10 @@ const App = () => {
           {step === 'TEMPLATE_SELECTION' && <TemplateSelect templates={allVisibleTpls} selectedTemplate={selectedTemplate} onSelect={handleTemplateSelect} onContinue={() => setStep('LIVE_VIEW')} onOpenEditor={openTemplateEditor} />}
           {step === 'LIVE_VIEW' && <CameraView mode={mode} videoRef={videoRef} mirror={mirror} isStreamReady={isStreamReady} isCapturing={isCapturing} isCounting={isCounting} countdown={countdown} shotCount={shotCount} capturedCount={capturedCount} currentShotIdx={currentShotIdx} retakingIdx={retakingIdx} captureDisabled={captureDisabled} onStart={handleTakePhoto} onBack={handleBackToTemplates} error={error} rawFrames={rawFrames} />}
           {step === 'REVIEW_SHOTS' && <ReviewView rawFrames={rawFrames} activeFilter={activeFilter} activeCss={activeCss} retakingIdx={retakingIdx} isRetaking={isRetaking} isProcessing={isProcessing} templateThumbSrc={templateThumbSrc} templateInfo={{ ...templateInfo, slots: selectedTemplate?.slots || templateInfo?.slots }} fitMode={selectedTemplate?.fitMode || 'cover'} templateLayoutMode={selectedTemplate?.layoutMode || selectedTemplate?.orientation} shotCount={shotCount} autoProceedSec={autoProceedSec} onRetake={handleRetakeSingleShot} onFilter={handleFilterChange} onGenerate={handleGenerateStrip} error={error} />}
-          {step === 'RESULT' && <ResultView resultPhotoUrl={resultPhotoUrl} resultShareUrl={resultShareUrl} resultLoopUrl={resultLoopUrl} rawFrames={rawFrames} activeCss={activeCss} template={selectedTemplate} resultFilename={resultFilename} isPrinting={isPrinting} onPrint={handlePrint} onNewSession={handleNewSession} onLightbox={openLightbox} cloudQrMode={cloudQrMode} />}
+          {step === 'RESULT' && <ResultView resultPhotoUrl={resultPhotoUrl} resultShareUrl={resultShareUrl} resultLoopUrl={resultLoopUrl} rawFrames={rawFrames} activeCss={activeCss} template={selectedTemplate} resultFilename={resultFilename} isPrinting={isPrinting} onPrint={handlePrint} paperType={paperType} onPaperTypeChange={setPaperType} printQuality={printQuality} onPrintQualityChange={setPrintQuality} stripLayout={stripLayout} onStripLayoutChange={setStripLayout} onNewSession={handleNewSession} onLightbox={openLightbox} cloudQrMode={cloudQrMode} />}
           {step === 'GALLERY' && (
             <Suspense fallback={<ViewLoading />}>
-              <GalleryView sessions={sessions} sessionsLoading={sessionsLoading} activeSession={activeSession} formatDate={formatDate} onSelect={setActiveSession} onBack={() => setActiveSession(null)} onBackToTemplates={handleBackToTemplates} onLightbox={openLightbox} onPrint={handlePrint} onDelete={handleDeleteSession} onDeleteMultiple={handleDeleteSessions} cloudQrMode={cloudQrMode} />
+              <GalleryView sessions={sessions} sessionsLoading={sessionsLoading} activeSession={activeSession} formatDate={formatDate} onSelect={setActiveSession} onBack={() => setActiveSession(null)} onBackToTemplates={handleBackToTemplates} onLightbox={openLightbox} onPrint={handlePrint} paperType={paperType} onPaperTypeChange={setPaperType} printQuality={printQuality} onPrintQualityChange={setPrintQuality} stripLayout={stripLayout} onStripLayoutChange={setStripLayout} onDelete={handleDeleteSession} onDeleteMultiple={handleDeleteSessions} cloudQrMode={cloudQrMode} />
             </Suspense>
           )}
         </div>

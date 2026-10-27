@@ -12,16 +12,21 @@ import {
   MinusCircleLinearIcon,
   AddCircleLinearIcon,
   CheckLinearIcon,
+  Tuning2LinearIcon,
 } from '@solar-icons/react';
+import PrintOptionsModal from './PrintOptionsModal.jsx';
 
 const PAGE_SIZE = 20;
 
 export default function GalleryView({ sessions, sessionsLoading, activeSession, formatDate, isPrinting,
-  onSelect, onBack, onBackToTemplates, onLightbox, onPrint, onDelete, onDeleteMultiple, cloudQrMode = 'local' }) {
+  onSelect, onBack, onBackToTemplates, onLightbox, onPrint, paperType = 'matte', onPaperTypeChange, printQuality = 'high', onPrintQualityChange,
+  stripLayout = 'dual', onStripLayoutChange,
+  onDelete, onDeleteMultiple, cloudQrMode = 'local' }) {
   const [cloudShareUrl, setCloudShareUrl] = useState(null);
   const [cloudLoading, setCloudLoading] = useState(false);
   const [cloudError, setCloudError] = useState(null);
   const [qrExpanded, setQrExpanded] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [printCopies, setPrintCopies] = useState(1);
   const [isLandscape, setIsLandscape] = useState(false);
@@ -276,13 +281,33 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
                   <p className="print-qty-hint">
                     {isLandscape
                       ? `${printCopies} ${printCopies === 1 ? 'Copy' : 'Copies'} = ${printCopies} 4R ${printCopies === 1 ? 'Photo' : 'Photos'}`
-                      : `${printCopies} ${printCopies === 1 ? 'Copy' : 'Copies'} = ${printCopies * 2} Strips on 4x6 (Total: ${printCopies * 2} Strips)`}
+                      : `${printCopies} ${printCopies === 1 ? 'Copy' : 'Copies'} = ${printCopies * (stripLayout === 'single' ? 1 : 2)} ${printCopies * (stripLayout === 'single' ? 1 : 2) === 1 ? 'Strip' : 'Strips'} (${stripLayout === 'single' ? 'Single' : 'Dual on 4x6'})`}
                   </p>
                 </div>
 
+                {/* Clean Print Options Modal Trigger */}
+                <button
+                  type="button"
+                  className="print-options-trigger-btn"
+                  onClick={() => setShowPrintModal(true)}
+                  title="Configure layout, paper media type and print resolution"
+                >
+                  <div className="print-options-trigger-info">
+                    <Tuning2LinearIcon size={16} color="var(--accent)" />
+                    <div className="print-options-trigger-text">
+                      <strong>{stripLayout === 'single' ? '1 Strip' : '2 Strips'}</strong>
+                      <span className="print-options-trigger-dot">•</span>
+                      <span>{paperType === 'matte' ? 'Matte' : paperType === 'glossy' ? 'Glossy' : 'Plain'}</span>
+                      <span className="print-options-trigger-dot">•</span>
+                      <span>{printQuality === 'high' ? '600 DPI' : '300 DPI'}</span>
+                    </div>
+                  </div>
+                  <span className="print-options-trigger-action">Options</span>
+                </button>
+
                 <button
                   className={`action-btn action-btn--outline ${isPrinting ? 'action-btn--loading' : ''}`}
-                  onClick={() => onPrint(activeSession.stripFilename, printCopies)}
+                  onClick={() => onPrint(activeSession.stripFilename, printCopies, { paperType, printQuality, stripLayout })}
                   disabled={isPrinting}
                   style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}
                 >
@@ -304,6 +329,16 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
                   <p>Scan to save your photos</p>
                 </div>
               </div>}
+              <PrintOptionsModal
+                isOpen={showPrintModal}
+                onClose={() => setShowPrintModal(false)}
+                paperType={paperType}
+                onPaperTypeChange={onPaperTypeChange}
+                printQuality={printQuality}
+                onPrintQualityChange={onPrintQualityChange}
+                stripLayout={stripLayout}
+                onStripLayoutChange={onStripLayoutChange}
+              />
             </div>
           </div>
         </div>

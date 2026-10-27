@@ -78,6 +78,10 @@ export default function useBooth() {
   const [printMsg,   setPrintMsg]   = useState(null);
   const [printers, setPrinters] = useState([]);
   const [selectedPrinter, setSelectedPrinter] = useState('');
+  const [paperType, setPaperType] = useState(() => lsGet('pb_paper_type', 'matte'));
+  const [printQuality, setPrintQuality] = useState(() => lsGet('pb_print_quality', 'high'));
+  const [stripLayout, setStripLayout] = useState(() => lsGet('pb_strip_layout', 'dual'));
+  const [silentPrint, setSilentPrint] = useState(() => lsGet('pb_silent_print', true));
   const [printerToast, setPrinterToast] = useState(null);
 
   // ── Refs ─────────────────────────────────────────────────────────────────────
@@ -104,15 +108,25 @@ export default function useBooth() {
   useEffect(() => { applyTheme(THEMES[activeTheme] || THEMES['lavender-dream'], customAccent); }, [activeTheme, customAccent]);
   useEffect(() => { lsSet('pb_hidden_builtins', hiddenBuiltins); }, [hiddenBuiltins]);
   useEffect(() => { lsSet('pb_builtin_slot_overrides', builtinSlotOverrides); }, [builtinSlotOverrides]);
+  useEffect(() => { lsSet('pb_paper_type', paperType); }, [paperType]);
+  useEffect(() => { lsSet('pb_print_quality', printQuality); }, [printQuality]);
+  useEffect(() => { lsSet('pb_strip_layout', stripLayout); }, [stripLayout]);
+  useEffect(() => { lsSet('pb_silent_print', silentPrint); }, [silentPrint]);
 
   useEffect(() => {
     if (step !== 'SETTINGS') return;
     Promise.all([
       window.electronAPI.getSystemPrinters(),
       window.electronAPI.getSavedPrinter(),
-    ]).then(([availablePrinters, savedPrinter]) => {
+      window.electronAPI.getPrinterConfig ? window.electronAPI.getPrinterConfig() : Promise.resolve(null),
+    ]).then(([availablePrinters, savedPrinter, printerCfg]) => {
       setPrinters(availablePrinters || []);
-      setSelectedPrinter(savedPrinter || availablePrinters?.find(p => p.isDefault)?.name || '');
+      const activePrinterName = printerCfg?.printerName || savedPrinter || availablePrinters?.find(p => p.isDefault)?.name || '';
+      setSelectedPrinter(activePrinterName);
+      if (printerCfg?.paperType) setPaperType(printerCfg.paperType);
+      if (printerCfg?.printQuality) setPrintQuality(printerCfg.printQuality);
+      if (printerCfg?.stripLayout) setStripLayout(printerCfg.stripLayout);
+      if (printerCfg?.silentPrint !== undefined) setSilentPrint(printerCfg.silentPrint);
     }).catch(err => setError(`Could not load printers: ${err.message}`));
     window.electronAPI.getCloudStatus()
       .then(setCloudStatus)
@@ -467,24 +481,58 @@ export default function useBooth() {
   };
 
   // ─── Print ────────────────────────────────────────────────────────────────────
-  const handlePrint = async (stripFilename, copies = 1) => {
+  const handlePrint = async (stripFilename, copies = 1, opts = {}) => {
     if (isPrinting) return;
     const count = Math.max(1, Math.min(5, Number(copies) || 1));
+    const activePaper = opts.paperType || paperType;
+    const activeQuality = opts.printQuality || printQuality;
+    const activeLayout = opts.stripLayout || stripLayout;
+    const activeSilent = opts.silent !== undefined ? opts.silent : silentPrint;
     setIsPrinting(true); setPrintMsg(null);
     try {
-      await window.electronAPI.printStrip({ stripFilename, copies: count, printerName: selectedPrinter || null });
-      setPrintMsg(`✅ Sent to printer! (${count} ${count === 1 ? 'copy' : 'copies'})`);
+      await window.electronAPI.printStrip({
+        stripFilename,
+        copies: count,
+        printerName: selectedPrinter || null,
+        paperType: activePaper,
+        printQuality: activeQuality,
+        stripLayout: activeLayout,
+        silent: activeSilent,
+      });
+      const paperLabel = activePaper === 'matte' ? 'Matte Photo' : activePaper === 'glossy' ? 'Glossy' : 'Plain';
+      const layoutLabel = activeLayout === 'single' ? 'Single Strip' : 'Dual Strips';
+      setPrintMsg(`✅ Sent to printer! (${count} ${count === 1 ? 'copy' : 'copies'} • ${paperLabel} • ${layoutLabel})`);
     } catch (err) { setPrintMsg('❌ Print failed: ' + err.message); }
     finally { setIsPrinting(false); setTimeout(() => setPrintMsg(null), 4000); }
   };
 
   const handlePrinterSave = async () => {
     try {
-      await window.electronAPI.savePrinterSelection(selectedPrinter || null);
-      setPrinterToast('Printer preference saved');
+      if (window.electronAPI.savePrinterConfig) {
+        await window.electronAPI.savePrinterConfig({
+          printerName: selectedPrinter || null,
+          paperType,
+          printQuality,
+          stripLayout,
+          silentPrint,
+        });
+      } else {
+        await window.electronAPI.savePrinterSelection(selectedPrinter || null);
+      }
+      setPrinterToast('Printer preferences saved');
       setTimeout(() => setPrinterToast(null), 2500);
     } catch (err) {
       setError(`Could not save printer: ${err.message}`);
+    }
+  };
+
+  const handleOpenPrinterPreferences = async () => {
+    try {
+      if (window.electronAPI.openPrinterPreferences) {
+        await window.electronAPI.openPrinterPreferences(selectedPrinter || null);
+      }
+    } catch (err) {
+      setError(`Could not open printer preferences: ${err.message}`);
     }
   };
 
@@ -929,6 +977,7 @@ export default function useBooth() {
     allTemplates, handleTemplateSelect, allVisibleTpls, videoRef, isStreamReady, isCapturing, isCounting, countdown, shotCount, capturedCount, currentShotIdx,
     captureDisabled, handleBackToTemplates, handleTakePhoto, switchDevice, error, retakingIdx, isRetaking, autoProceedSec, handleRetakeSingleShot,
     templateThumbSrc, templateInfo, clearAutoProceed, startAutoProceed, generateStrip, sessionTs, handlePrinterSave, handlePrinterTest,
+    paperType, setPaperType, printQuality, setPrintQuality, stripLayout, setStripLayout, silentPrint, setSilentPrint, handleOpenPrinterPreferences,
     setOutputDir, setDigiCamControlPath, setDigiCamControlAvailable, setSelectedPrinter, setMode, setSelectedDeviceId, setMirror, setShotOverride, setCountdownDuration, setFlashEnabled,
     setError, setActiveFilter, closeSettings, changeTheme, selectOutputFolder, openOutputFolder, selectDigiCamControl,
     handleFilterChange, handleGenerateStrip, cloudQrMode, setCloudQrMode, cloudStatus, testCloudConnection,

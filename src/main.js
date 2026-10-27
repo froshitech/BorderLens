@@ -1134,6 +1134,18 @@ app.whenReady().then(() => {
     return config.printerName || null;
   });
 
+  ipcMain.handle('get-printer-config', () => {
+    let config = {};
+    try { config = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')); } catch {}
+    return {
+      printerName: config.printerName || null,
+      paperType: config.paperType || 'matte',
+      printQuality: config.printQuality || 'high',
+      stripLayout: config.stripLayout || 'dual',
+      silentPrint: config.silentPrint !== false,
+    };
+  });
+
   ipcMain.handle('save-printer-selection', (event, printerName) => {
     if (printerName !== null && typeof printerName !== 'string') {
       throw new Error('Invalid printer selection.');
@@ -1146,6 +1158,39 @@ app.whenReady().then(() => {
     fs.mkdirSync(path.dirname(SETTINGS_FILE), { recursive: true });
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify(config, null, 2));
     return config.printerName;
+  });
+
+  ipcMain.handle('save-printer-config', (event, { printerName, paperType, printQuality, stripLayout, silentPrint } = {}) => {
+    let config = {};
+    try { config = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')); } catch {}
+    config.outputDir = OUTPUT_DIR;
+    config.digiCamControlPath = DIGI_CAM_DIR;
+    if (printerName !== undefined) config.printerName = printerName || null;
+    if (paperType) config.paperType = paperType;
+    if (printQuality) config.printQuality = printQuality;
+    if (stripLayout) config.stripLayout = stripLayout;
+    if (silentPrint !== undefined) config.silentPrint = Boolean(silentPrint);
+    fs.mkdirSync(path.dirname(SETTINGS_FILE), { recursive: true });
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(config, null, 2));
+    return {
+      printerName: config.printerName || null,
+      paperType: config.paperType || 'matte',
+      printQuality: config.printQuality || 'high',
+      stripLayout: config.stripLayout || 'dual',
+      silentPrint: config.silentPrint !== false,
+    };
+  });
+
+  ipcMain.handle('open-printer-preferences', async (event, printerName) => {
+    if (!printerName) {
+      exec('control printers');
+      return { success: true };
+    }
+    const safeName = printerName.replace(/"/g, '\"');
+    exec(`rundll32.exe printui.dll,PrintUIEntry /e /n "${safeName}"`, (err) => {
+      if (err) console.error('Failed to open printer preferences:', err);
+    });
+    return { success: true };
   });
 
   ipcMain.handle('select-output-folder', async () => {
@@ -1514,13 +1559,26 @@ app.whenReady().then(() => {
   });
 
   // ── print-strip ─────────────────────────────────────────────────────────────
-  ipcMain.handle('print-strip', async (event, { stripFilename, copies = 1, printerName = null }) => {
-    if (!printerName) {
-      try {
-        const config = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
-        printerName = config.printerName || null;
-      } catch {}
-    }
+  ipcMain.handle('print-strip', async (event, {
+    stripFilename,
+    copies = 1,
+    printerName = null,
+    paperType = null,
+    printQuality = null,
+    stripLayout = null,
+    silent = null,
+  } = {}) => {
+    let config = {};
+    try {
+      config = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+    } catch {}
+
+    printerName = printerName || config.printerName || null;
+    const effectivePaper = paperType || config.paperType || 'matte';
+    const effectiveQuality = printQuality || config.printQuality || 'high';
+    const effectiveLayout = stripLayout || config.stripLayout || 'dual';
+    const isSilent = silent !== null ? Boolean(silent) : (config.silentPrint !== false);
+
     const safeName   = path.basename(stripFilename);
     const stripPath  = path.join(OUTPUT_DIR, safeName);
     if (!fs.existsSync(stripPath)) throw new Error('Strip file not found: ' + safeName);
@@ -1532,85 +1590,183 @@ app.whenReady().then(() => {
     // 4R canvas: 1200×1800 px (portrait) or 1800×1200 (landscape for single-shot)
     const meta = await sharp(stripPath).metadata();
     const isLandscape = meta.width > meta.height;
+    const isStrip = !isLandscape && (meta.width / meta.height <= 0.55);
+
+    // Matte Paper Optimization:
+    // Matte photo paper absorbs ink and scatters light differently than glossy paper.
+    // To ensure rich, punchy contrast and razor-sharp text/lines on matte paper,
+    // we apply unsharp masking and fine vibrance calibration.
+    let basePipeline = sharp(stripPath);
+    if (effectivePaper === 'matte') {
+      basePipeline = basePipeline
+        .sharpen({ sigma: 1.1, m1: 1.0, m2: 2.0 })
+        .modulate({ brightness: 1.02, saturation: 1.06 });
+    }
+    const processedBuffer = await basePipeline.toBuffer();
 
     if (isLandscape) {
       // Single-shot landscape → fit/pad onto 1800×1200 4R canvas
       await sharp({
-        create: { width: 1800, height: 1200, channels: 3, background: { r: 0, g: 0, b: 0 } }
+        create: { width: 1800, height: 1200, channels: 3, background: { r: 255, g: 255, b: 255 } }
       })
         .composite([{
-          input: await sharp(stripPath).resize(1800, 1200, {
+          input: await sharp(processedBuffer).resize(1800, 1200, {
             fit: 'contain',
-            background: { r: 0, g: 0, b: 0 },
+            background: { r: 255, g: 255, b: 255 },
             ...HIGH_QUALITY_RESIZE,
           }).toBuffer(),
           top: 0, left: 0,
         }])
         .jpeg(HIGH_QUALITY_JPEG)
         .toFile(printPath);
-    } else {
-      // Multi-shot vertical strip → duplicate side-by-side on 1200×1800 4R canvas
-      // Each copy occupies 600px wide; strip is resized to 600×1800
+    } else if (isStrip) {
+      // Multi-shot vertical strip (2x6)
+      // 'dual': duplicate side-by-side on 1200×1800 4R canvas (two 600px wide strips)
+      // 'single': single strip placed at left edge on 1200×1800 canvas
       const halfW = 600, canvasH = 1800;
-      const stripBuf = await sharp(stripPath)
+      const stripBuf = await sharp(processedBuffer)
         .resize(halfW, canvasH, {
           fit: 'contain',
-          background: { r: 0, g: 0, b: 0 },
+          background: { r: 255, g: 255, b: 255 },
           ...HIGH_QUALITY_RESIZE,
         })
         .toBuffer();
+
+      const composites = effectiveLayout === 'single'
+        ? [{ input: stripBuf, top: 0, left: 0 }]
+        : [
+            { input: stripBuf, top: 0, left: 0 },
+            { input: stripBuf, top: 0, left: halfW },
+          ];
+
       await sharp({
-        create: { width: halfW * 2, height: canvasH, channels: 3, background: { r: 0, g: 0, b: 0 } }
+        create: { width: halfW * 2, height: canvasH, channels: 3, background: { r: 255, g: 255, b: 255 } }
       })
-        .composite([
-          { input: stripBuf, top: 0, left: 0 },
-          { input: stripBuf, top: 0, left: halfW },
-        ])
+        .composite(composites)
+        .jpeg(HIGH_QUALITY_JPEG)
+        .toFile(printPath);
+    } else {
+      // Single 4R portrait (4x6) → fit/pad onto 1200×1800 4R canvas
+      await sharp({
+        create: { width: 1200, height: 1800, channels: 3, background: { r: 255, g: 255, b: 255 } }
+      })
+        .composite([{
+          input: await sharp(processedBuffer).resize(1200, 1800, {
+            fit: 'contain',
+            background: { r: 255, g: 255, b: 255 },
+            ...HIGH_QUALITY_RESIZE,
+          }).toBuffer(),
+          top: 0, left: 0,
+        }])
         .jpeg(HIGH_QUALITY_JPEG)
         .toFile(printPath);
     }
 
-    // Print via a hidden BrowserWindow that loads the image and calls window.print()
+    // Read image as base64 and write self-contained temp HTML file
+    // This avoids Chromium's file:/// URL security restrictions when printing from data URLs
+    const imgBuf = fs.readFileSync(printPath);
+    const dataUri = `data:image/jpeg;base64,${imgBuf.toString('base64')}`;
+
     const printHtml = `<!DOCTYPE html>
 <html>
 <head>
+<meta charset="utf-8">
 <style>
-  @page { size: ${isLandscape ? '6in 4in' : '4in 6in'}; margin: 0; }
-  body  { margin: 0; padding: 0; }
-  img   { width: 100%; height: 100vh; object-fit: contain; display: block; }
+  @page {
+    size: ${isLandscape ? '6in 4in' : '4in 6in'};
+    margin: 0;
+  }
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+    overflow: hidden;
+  }
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
 </style>
 </head>
 <body>
-  <img src="file:///${printPath.replace(/\\/g, '/')}">
+  <img id="printImage" src="${dataUri}">
 </body>
 </html>`;
 
+    const tempHtmlPath = path.join(app.getPath('temp'), `borderlens_print_${Date.now()}.html`);
+    fs.writeFileSync(tempHtmlPath, printHtml, 'utf8');
+
     const printWin = new BrowserWindow({
       show: false,
-      webPreferences: { contextIsolation: true, nodeIntegration: false },
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        webSecurity: false,
+      },
     });
 
-    await printWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(printHtml));
+    try {
+      await printWin.loadFile(tempHtmlPath);
 
-    return new Promise((resolve, reject) => {
-      // Silent print; repeat for requested copies
-      let printed = 0;
-      const doPrint = () => {
-        const printOptions = { silent: true, printBackground: true };
-        if (printerName) printOptions.deviceName = printerName;
-        printWin.webContents.print(printOptions, (success, errorType) => {
-          if (!success) {
-            printWin.destroy();
-            return reject(new Error('Print failed: ' + errorType));
+      // Ensure the image is fully decoded and rendered before printing
+      await printWin.webContents.executeJavaScript(`
+        new Promise((resolve) => {
+          const img = document.getElementById('printImage');
+          if (!img) return resolve();
+          if (img.complete) {
+            img.decode ? img.decode().then(resolve).catch(resolve) : resolve();
+          } else {
+            img.onload = () => { img.decode ? img.decode().then(resolve).catch(resolve) : resolve(); };
+            img.onerror = () => resolve();
           }
-          printed++;
-          if (printed < copies) return doPrint();
-          printWin.destroy();
-          resolve({ printFile });
         });
-      };
-      doPrint();
-    });
+      `);
+
+      await new Promise((resolve, reject) => {
+        let printed = 0;
+        const doPrint = () => {
+          const printOptions = {
+            silent: isSilent,
+            printBackground: true,
+            margins: { marginType: 'none' },
+            landscape: isLandscape,
+            dpi: effectiveQuality === 'high' ? { horizontal: 600, vertical: 600 } : { horizontal: 300, vertical: 300 },
+            pageSize: isLandscape
+              ? { width: 152400, height: 101600 }
+              : { width: 101600, height: 152400 },
+            color: true,
+          };
+          if (printerName) printOptions.deviceName = printerName;
+          printWin.webContents.print(printOptions, (success, errorType) => {
+            if (!success) {
+              return reject(new Error('Print failed: ' + errorType));
+            }
+            printed++;
+            if (printed < copies) return doPrint();
+            resolve();
+          });
+        };
+        doPrint();
+      });
+
+      return { printFile, paperType: effectivePaper, printQuality: effectiveQuality, stripLayout: effectiveLayout };
+    } finally {
+      if (!printWin.isDestroyed()) {
+        printWin.destroy();
+      }
+      try {
+        fs.unlinkSync(tempHtmlPath);
+      } catch (_) {}
+    }
   });
 
   app.on('activate', () => {

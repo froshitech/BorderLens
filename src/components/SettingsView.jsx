@@ -28,6 +28,20 @@ import {
   RefreshCircleLinearIcon,
   EyeLinearIcon,
   EyeClosedLinearIcon,
+  DocumentTextLinearIcon,
+  DocumentTextBoldIcon,
+  StarsLinearIcon,
+  StarsBoldIcon,
+  FileLinearIcon,
+  FileBoldIcon,
+  MagicWand2LinearIcon,
+  MagicWand2BoldIcon,
+  BoltBoldIcon,
+  Tuning2LinearIcon,
+  CopyLinearIcon,
+  CopyBoldIcon,
+  DocumentLinearIcon,
+  DocumentBoldIcon,
 } from '@solar-icons/react';
 
 const TABS = [
@@ -42,6 +56,11 @@ const TABS = [
 export default function SettingsView({
   themes = {}, activeTheme, customAccent, onThemeChange, onAccentChange,
   outputDir, digiCamControlPath, digiCamControlAvailable, printers = [], selectedPrinter,
+  paperType = 'matte', onPaperTypeChange,
+  printQuality = 'high', onPrintQualityChange,
+  stripLayout = 'dual', onStripLayoutChange,
+  silentPrint = true, onSilentPrintChange,
+  onOpenPrinterPreferences,
   mode, devices = [], selectedDeviceId, mirror, shotOverride, countdownDuration, flashEnabled,
   builtinTemplates = [], hiddenBuiltins = [], customTemplates = [], allVisibleTpls = [],
   isPrinting, canTestPrint, onSelectOutput, onOpenOutput, onSelectDigi,
@@ -386,24 +405,36 @@ export default function SettingsView({
                 <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                   <PrinterBoldIcon size={28} color="var(--accent)" /> Printer Setup
                 </h2>
-                <p>Configure default thermal or inkjet photo printers and test physical output.</p>
+                <p>Configure default thermal or inkjet photo printers, paper media type, and test physical output.</p>
               </div>
 
               <section className="settings-section">
                 <h3>Windows Printer Selection</h3>
-                <select
-                  className="settings-select"
-                  value={selectedPrinter}
-                  onChange={e => onPrinterChange(e.target.value)}
-                  disabled={printers.length === 0}
-                >
-                  <option value="">Windows Default Printer</option>
-                  {printers.map(printer => (
-                    <option key={printer.name} value={printer.name}>
-                      {printer.displayName || printer.name} {printer.isDefault ? ' (System Default)' : ''}
-                    </option>
-                  ))}
-                </select>
+                <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select
+                    className="settings-select"
+                    style={{ flex: '1 1 240px' }}
+                    value={selectedPrinter}
+                    onChange={e => onPrinterChange(e.target.value)}
+                    disabled={printers.length === 0}
+                  >
+                    <option value="">Windows Default Printer</option>
+                    {printers.map(printer => (
+                      <option key={printer.name} value={printer.name}>
+                        {printer.displayName || printer.name} {printer.isDefault ? ' (System Default)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="settings-add-btn"
+                    onClick={onOpenPrinterPreferences}
+                    title="Open native Windows printer driver preferences (paper tray, media profile, nozzle check)"
+                    style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.65rem 0.95rem' }}
+                  >
+                    <Tuning2LinearIcon size={16} /> Driver Properties
+                  </button>
+                </div>
 
                 {printers.length === 0 ? (
                   <p className="settings-hint settings-hint--error">No Windows printers detected. Connect a printer or install drivers.</p>
@@ -412,10 +443,197 @@ export default function SettingsView({
                     Default printer: <strong>{printers.find(p => p.isDefault)?.displayName || 'None'}</strong>
                   </p>
                 )}
+              </section>
 
-                <div className="settings-pill-group" style={{ marginTop: '0.75rem' }}>
+              {/* ── Strip Layout & Paper Optimization ── */}
+              <section className="settings-section">
+                <h3>Strip Layout &amp; Copies Per Page</h3>
+                <p className="settings-hint">
+                  Choose how vertical 2×6 photo strips are arranged. Dual strips fill a 4×6 sheet (or an A4 sheet cut in half lengthwise). Single strip prints 1 copy aligned to the leading edge.
+                </p>
+                <div className="printer-options-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginTop: '0.65rem' }}>
+                  <div
+                    onClick={() => onStripLayoutChange('dual')}
+                    style={{
+                      border: stripLayout === 'dual' ? '2px solid var(--accent)' : '1px solid var(--border)',
+                      background: stripLayout === 'dual' ? 'var(--bg-elevated)' : 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0.85rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: stripLayout === 'dual' ? '0 0 0 1px var(--accent)' : 'none',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', fontWeight: 700, fontSize: '0.92rem', color: stripLayout === 'dual' ? 'var(--accent)' : 'var(--text-primary)' }}>
+                      {stripLayout === 'dual' ? <CopyBoldIcon size={20} color="var(--accent)" /> : <CopyLinearIcon size={20} />}
+                      <span>2 Strips (Dual 2×6 on 4×6)</span>
+                    </div>
+                    <small style={{ display: 'block', marginTop: '0.35rem', color: 'var(--text-secondary)', fontSize: '0.75rem', lineHeight: '1.4' }}>
+                      Duplicates strips side-by-side. Fits 4×6 photo paper or 105mm half-cut A4 sheets perfectly.
+                    </small>
+                  </div>
+
+                  <div
+                    onClick={() => onStripLayoutChange('single')}
+                    style={{
+                      border: stripLayout === 'single' ? '2px solid var(--accent)' : '1px solid var(--border)',
+                      background: stripLayout === 'single' ? 'var(--bg-elevated)' : 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0.85rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: stripLayout === 'single' ? '0 0 0 1px var(--accent)' : 'none',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', fontWeight: 700, fontSize: '0.92rem', color: stripLayout === 'single' ? 'var(--accent)' : 'var(--text-primary)' }}>
+                      {stripLayout === 'single' ? <DocumentBoldIcon size={20} color="var(--accent)" /> : <DocumentLinearIcon size={20} />}
+                      <span>1 Strip (Single 2×6)</span>
+                    </div>
+                    <small style={{ display: 'block', marginTop: '0.35rem', color: 'var(--text-secondary)', fontSize: '0.75rem', lineHeight: '1.4' }}>
+                      Prints a single strip aligned to the edge of the sheet.
+                    </small>
+                  </div>
+                </div>
+              </section>
+
+              {/* ── Paper Media Selection ── */}
+              <section className="settings-section">
+                <h3>Photo Paper Media Type</h3>
+                <p className="settings-hint">
+                  Select your active paper stock. Matte papers receive tailored unsharp compensation and tone curves to counteract ink spread and ensure deep, rich blacks.
+                </p>
+                <div className="printer-options-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginTop: '0.65rem' }}>
+                  <div
+                    onClick={() => onPaperTypeChange('matte')}
+                    style={{
+                      border: paperType === 'matte' ? '2px solid var(--accent)' : '1px solid var(--border)',
+                      background: paperType === 'matte' ? 'var(--bg-elevated)' : 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0.85rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: paperType === 'matte' ? '0 0 0 1px var(--accent)' : 'none',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', fontWeight: 700, fontSize: '0.92rem', color: paperType === 'matte' ? 'var(--accent)' : 'var(--text-primary)' }}>
+                      {paperType === 'matte' ? <DocumentTextBoldIcon size={20} color="var(--accent)" /> : <DocumentTextLinearIcon size={20} />}
+                      <span>Matte Photo Paper</span>
+                    </div>
+                    <small style={{ display: 'block', marginTop: '0.35rem', color: 'var(--text-secondary)', fontSize: '0.75rem', lineHeight: '1.4' }}>
+                      Optimized for non-glossy/matte paper. Automatically boosts unsharp masking &amp; saturation to counteract matte ink spread.
+                    </small>
+                  </div>
+
+                  <div
+                    onClick={() => onPaperTypeChange('glossy')}
+                    style={{
+                      border: paperType === 'glossy' ? '2px solid var(--accent)' : '1px solid var(--border)',
+                      background: paperType === 'glossy' ? 'var(--bg-elevated)' : 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0.85rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: paperType === 'glossy' ? '0 0 0 1px var(--accent)' : 'none',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', fontWeight: 700, fontSize: '0.92rem', color: paperType === 'glossy' ? 'var(--accent)' : 'var(--text-primary)' }}>
+                      {paperType === 'glossy' ? <StarsBoldIcon size={20} color="var(--accent)" /> : <StarsLinearIcon size={20} />}
+                      <span>Glossy Photo Paper</span>
+                    </div>
+                    <small style={{ display: 'block', marginTop: '0.35rem', color: 'var(--text-secondary)', fontSize: '0.75rem', lineHeight: '1.4' }}>
+                      Standard reflective photo paper. Vibrant highlights and balanced natural tones.
+                    </small>
+                  </div>
+
+                  <div
+                    onClick={() => onPaperTypeChange('plain')}
+                    style={{
+                      border: paperType === 'plain' ? '2px solid var(--accent)' : '1px solid var(--border)',
+                      background: paperType === 'plain' ? 'var(--bg-elevated)' : 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0.85rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: paperType === 'plain' ? '0 0 0 1px var(--accent)' : 'none',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', fontWeight: 700, fontSize: '0.92rem', color: paperType === 'plain' ? 'var(--accent)' : 'var(--text-primary)' }}>
+                      {paperType === 'plain' ? <FileBoldIcon size={20} color="var(--accent)" /> : <FileLinearIcon size={20} />}
+                      <span>Standard / Plain Paper</span>
+                    </div>
+                    <small style={{ display: 'block', marginTop: '0.35rem', color: 'var(--text-secondary)', fontSize: '0.75rem', lineHeight: '1.4' }}>
+                      For draft runs or standard bond paper tests without consuming expensive photo media.
+                    </small>
+                  </div>
+                </div>
+              </section>
+
+              {/* ── Print Quality & Spooler Options ── */}
+              <section className="settings-section">
+                <h3>Print Resolution &amp; Quality</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginTop: '0.65rem' }}>
+                  <div
+                    onClick={() => onPrintQualityChange('high')}
+                    style={{
+                      border: printQuality === 'high' ? '2px solid var(--accent)' : '1px solid var(--border)',
+                      background: printQuality === 'high' ? 'var(--bg-elevated)' : 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0.85rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: printQuality === 'high' ? '0 0 0 1px var(--accent)' : 'none',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', fontWeight: 700, fontSize: '0.9rem', color: printQuality === 'high' ? 'var(--accent)' : 'var(--text-primary)' }}>
+                      {printQuality === 'high' ? <MagicWand2BoldIcon size={20} color="var(--accent)" /> : <MagicWand2LinearIcon size={20} />}
+                      <span>High Quality (600 DPI Fine Detail)</span>
+                    </div>
+                    <small style={{ display: 'block', marginTop: '0.3rem', color: 'var(--text-secondary)', fontSize: '0.74rem' }}>
+                      Maximum sharpness and color fidelity. Perfect for event keepsakes and customer prints.
+                    </small>
+                  </div>
+
+                  <div
+                    onClick={() => onPrintQualityChange('standard')}
+                    style={{
+                      border: printQuality === 'standard' ? '2px solid var(--accent)' : '1px solid var(--border)',
+                      background: printQuality === 'standard' ? 'var(--bg-elevated)' : 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0.85rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: printQuality === 'standard' ? '0 0 0 1px var(--accent)' : 'none',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', fontWeight: 700, fontSize: '0.9rem', color: printQuality === 'standard' ? 'var(--accent)' : 'var(--text-primary)' }}>
+                      {printQuality === 'standard' ? <BoltBoldIcon size={20} color="var(--accent)" /> : <BoltLinearIcon size={20} />}
+                      <span>Standard Quality (300 DPI Fast)</span>
+                    </div>
+                    <small style={{ display: 'block', marginTop: '0.3rem', color: 'var(--text-secondary)', fontSize: '0.74rem' }}>
+                      Faster spooling throughput. Standard continuous-feed and thermal printer speed.
+                    </small>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                  <div>
+                    <strong style={{ fontSize: '0.85rem', display: 'block' }}>Background Silent Printing</strong>
+                    <small style={{ color: 'var(--text-secondary)', fontSize: '0.74rem' }}>
+                      {silentPrint ? 'Direct printing without popup dialogs (fast photobooth workflow).' : 'Opens Windows printer dialog each time for manual tray selection.'}
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    className={`settings-pill ${silentPrint ? 'settings-pill--active' : ''}`}
+                    onClick={() => onSilentPrintChange(!silentPrint)}
+                  >
+                    {silentPrint ? 'Silent Mode ON' : 'Dialog Prompt ON'}
+                  </button>
+                </div>
+
+                <div className="settings-pill-group" style={{ marginTop: '1rem' }}>
                   <button type="button" className="settings-add-btn" onClick={onSavePrinter} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}>
-                    <DisketteLinearIcon size={16} /> Save Printer Preference
+                    <DisketteLinearIcon size={16} /> Save All Printer Preferences
                   </button>
                   <button
                     type="button"
@@ -428,20 +646,21 @@ export default function SettingsView({
                   </button>
                 </div>
                 {!canTestPrint && (
-                  <small style={{ color: 'var(--text-hint)', fontSize: '0.72rem' }}>
+                  <small style={{ color: 'var(--text-hint)', fontSize: '0.72rem', display: 'block', marginTop: '0.35rem' }}>
                     Tip: Complete a session or select a strip in Gallery to run a test print.
                   </small>
                 )}
               </section>
 
               <section className="settings-section">
-                <h3>4R Borderless Printing Information</h3>
+                <h3>4R Borderless Output Specifications</h3>
                 <p className="settings-hint">
                   BorderLens automatically formats vertical photo strips onto standard 4R (4×6 inch) photo paper:
                 </p>
                 <ul style={{ paddingLeft: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: '1.6' }}>
                   <li><strong>Multi-shot Vertical Strips:</strong> Automatically duplicated side-by-side (two 2×6 strips on one 4×6 print) for clean center cutting.</li>
-                  <li><strong>Single-shot &amp; Landscape:</strong> Scaled and centered with high-quality Lanczos3 resampling for sharp 300 DPI output.</li>
+                  <li><strong>Single-shot &amp; Postcards:</strong> Centered with zero offset margins for borderless photo prints.</li>
+                  <li><strong>Paper Compensation:</strong> Matte photo paper automatically receives edge unsharp masking to prevent ink bleed and softness.</li>
                 </ul>
               </section>
             </>

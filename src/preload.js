@@ -19,11 +19,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('process-strip', rawFilepaths, templatePath, filterType, orientation, slots, fitMode, sessionTs),
 
   // ── Printing ──────────────────────────────────────────────────────────────
-  // { stripFilename: string, copies: number }
+  // { stripFilename: string, copies: number, printerName?: string, paperType?: string, printQuality?: string, silent?: boolean }
   printStrip: (opts) => ipcRenderer.invoke('print-strip', opts),
-  getSystemPrinters:    () => ipcRenderer.invoke('get-system-printers'),
-  getSavedPrinter:      () => ipcRenderer.invoke('get-saved-printer'),
-  savePrinterSelection: (name) => ipcRenderer.invoke('save-printer-selection', name),
+  getSystemPrinters:      () => ipcRenderer.invoke('get-system-printers'),
+  getSavedPrinter:        () => ipcRenderer.invoke('get-saved-printer'),
+  savePrinterSelection:   (name) => ipcRenderer.invoke('save-printer-selection', name),
+  getPrinterConfig:       () => ipcRenderer.invoke('get-printer-config'),
+  savePrinterConfig:      (cfg) => ipcRenderer.invoke('save-printer-config', cfg),
+  openPrinterPreferences: (printerName) => ipcRenderer.invoke('open-printer-preferences', printerName),
 
   // ── Gallery ────────────────────────────────────────────────────────────────
   listSessions:    ()         => ipcRenderer.invoke('list-sessions'),
