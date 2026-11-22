@@ -1622,6 +1622,13 @@ app.whenReady().then(() => {
     const canvasW = sourceIsLandscape ? 1800 : 1200;
     const canvasH = sourceIsLandscape ? 1200 : 1800;
     const isLandscape = sourceIsLandscape;
+    // 4R paper size
+    const pageWidthIn = isLandscape ? 6 : 4;
+    const pageHeightIn = isLandscape ? 4 : 6;
+    const PRINT_SAFE_INSET_MM = 2.5;
+    const inset = Math.round((PRINT_SAFE_INSET_MM / 25.4) * (canvasW / pageWidthIn));
+    const contentW = canvasW - inset * 2;
+    const contentH = canvasH - inset * 2;
 
     // Matte Paper Optimization:
     // Matte photo paper absorbs ink and scatters light differently than glossy paper.
@@ -1640,12 +1647,12 @@ app.whenReady().then(() => {
         create: { width: canvasW, height: canvasH, channels: 3, background: { r: 255, g: 255, b: 255 } }
       })
         .composite([{
-          input: await sharp(processedBuffer).resize(canvasW, canvasH, {
+          input: await sharp(processedBuffer).resize(contentW, contentH, {
             fit: 'contain',
             background: { r: 255, g: 255, b: 255 },
             ...HIGH_QUALITY_RESIZE,
           }).toBuffer(),
-          top: 0, left: 0,
+          top: inset, left: inset,
         }])
         .withMetadata({ density: printDensity })
         .jpeg(HIGH_QUALITY_JPEG)
@@ -1654,8 +1661,8 @@ app.whenReady().then(() => {
       // Multi-shot vertical strip (2x6)
       // 'dual': duplicate side-by-side on 1200×1800 4R canvas with a safe inset
       // 'single': single strip placed at left edge on 1200×1800 canvas
-      const halfW = Math.floor(canvasW / (effectiveLayout === 'single' ? 1 : 2));
-      const safeH = canvasH;
+      const halfW = Math.floor(contentW / (effectiveLayout === 'single' ? 1 : 2));
+      const safeH = contentH;
       const stripBuf = await sharp(processedBuffer)
         .resize(halfW, safeH, {
           fit: 'contain',
@@ -1665,10 +1672,10 @@ app.whenReady().then(() => {
         .toBuffer();
 
       const composites = effectiveLayout === 'single'
-        ? [{ input: stripBuf, top: 0, left: 0 }]
+        ? [{ input: stripBuf, top: inset, left: inset }]
         : [
-            { input: stripBuf, top: 0, left: 0 },
-            { input: stripBuf, top: 0, left: halfW },
+            { input: stripBuf, top: inset, left: inset },
+            { input: stripBuf, top: inset, left: inset + halfW },
           ];
 
       await sharp({
@@ -1683,12 +1690,12 @@ app.whenReady().then(() => {
         create: { width: canvasW, height: canvasH, channels: 3, background: { r: 255, g: 255, b: 255 } }
       })
         .composite([{
-          input: await sharp(processedBuffer).resize(canvasW, canvasH, {
+          input: await sharp(processedBuffer).resize(contentW, contentH, {
             fit: 'contain',
             background: { r: 255, g: 255, b: 255 },
             ...HIGH_QUALITY_RESIZE,
           }).toBuffer(),
-          top: 0, left: 0,
+          top: inset, left: inset,
         }])
         .withMetadata({ density: printDensity })
         .jpeg(HIGH_QUALITY_JPEG)
@@ -1706,6 +1713,7 @@ app.whenReady().then(() => {
 <meta charset="utf-8">
 <style>
   @page {
+    size: ${pageWidthIn}in ${pageHeightIn}in;
     margin: 0;
   }
   * {
@@ -1714,8 +1722,8 @@ app.whenReady().then(() => {
     box-sizing: border-box;
   }
   html, body {
-    width: 100%;
-    height: 100%;
+    width: ${pageWidthIn}in;
+    height: ${pageHeightIn}in;
     margin: 0;
     padding: 0;
     background: #ffffff;
@@ -1773,6 +1781,8 @@ app.whenReady().then(() => {
             silent: isSilent,
             printBackground: true,
             margins: { marginType: 'none' },
+            pageSize: { width: 101600, height: 152400 }, // falls back to A4/Letter
+            landscape: isLandscape,
             scaleFactor: 100,
             color: true,
           };
