@@ -1586,6 +1586,21 @@ app.whenReady().then(() => {
     const ts          = safeName.replace(/^strip_/, '').replace(/\.jpg$/, '');
     const printFile   = `print_${ts}.jpg`;
     const printPath   = path.join(OUTPUT_DIR, printFile);
+    const printDensity = effectiveQuality === 'high' ? 600 : 300;
+    // Keep a physical safe margin inside the 4R canvas. Many photo printers
+    // bleed or clip a few pixels even when Chromium reports borderless output.
+    // This prevents template borders and the top/bottom of each strip from
+    // being cut off without changing the source strip or live preview.
+    // Reserve a small printer-safe border. The vertical space is intentionally
+    // asymmetric: printers that clip on one edge do so primarily at the
+    // mechanical bottom, so content is kept flush with the top and gains extra
+    // bottom clearance.
+    const portraitSafeW = 1152;
+    const portraitSafeH = 1728;
+    const landscapeSafeW = 1728;
+    const landscapeSafeH = 1152;
+    const printLeft = 24;
+    const printTop = 0;
 
     // 4R canvas: 1200×1800 px (portrait) or 1800×1200 (landscape for single-shot)
     const meta = await sharp(stripPath).metadata();
@@ -1610,22 +1625,24 @@ app.whenReady().then(() => {
         create: { width: 1800, height: 1200, channels: 3, background: { r: 255, g: 255, b: 255 } }
       })
         .composite([{
-          input: await sharp(processedBuffer).resize(1800, 1200, {
+          input: await sharp(processedBuffer).resize(landscapeSafeW, landscapeSafeH, {
             fit: 'contain',
             background: { r: 255, g: 255, b: 255 },
             ...HIGH_QUALITY_RESIZE,
           }).toBuffer(),
-          top: 0, left: 0,
+          top: 0, left: 36,
         }])
+        .withMetadata({ density: printDensity })
         .jpeg(HIGH_QUALITY_JPEG)
         .toFile(printPath);
     } else if (isStrip) {
       // Multi-shot vertical strip (2x6)
-      // 'dual': duplicate side-by-side on 1200×1800 4R canvas (two 600px wide strips)
+      // 'dual': duplicate side-by-side on 1200×1800 4R canvas with a safe inset
       // 'single': single strip placed at left edge on 1200×1800 canvas
-      const halfW = 600, canvasH = 1800;
+      const canvasW = 1200, canvasH = 1800;
+      const halfW = 576, safeH = 1728;
       const stripBuf = await sharp(processedBuffer)
-        .resize(halfW, canvasH, {
+        .resize(halfW, safeH, {
           fit: 'contain',
           background: { r: 255, g: 255, b: 255 },
           ...HIGH_QUALITY_RESIZE,
@@ -1633,16 +1650,18 @@ app.whenReady().then(() => {
         .toBuffer();
 
       const composites = effectiveLayout === 'single'
-        ? [{ input: stripBuf, top: 0, left: 0 }]
+        ? [{ input: stripBuf, top: 0, left: 24 }]
         : [
-            { input: stripBuf, top: 0, left: 0 },
-            { input: stripBuf, top: 0, left: halfW },
+            // No manual gap: the two centered copies meet at the sheet seam.
+            { input: stripBuf, top: 0, left: 24 },
+            { input: stripBuf, top: 0, left: 600 },
           ];
 
       await sharp({
-        create: { width: halfW * 2, height: canvasH, channels: 3, background: { r: 255, g: 255, b: 255 } }
+        create: { width: canvasW, height: canvasH, channels: 3, background: { r: 255, g: 255, b: 255 } }
       })
         .composite(composites)
+        .withMetadata({ density: printDensity })
         .jpeg(HIGH_QUALITY_JPEG)
         .toFile(printPath);
     } else {
@@ -1651,13 +1670,14 @@ app.whenReady().then(() => {
         create: { width: 1200, height: 1800, channels: 3, background: { r: 255, g: 255, b: 255 } }
       })
         .composite([{
-          input: await sharp(processedBuffer).resize(1200, 1800, {
+          input: await sharp(processedBuffer).resize(portraitSafeW, portraitSafeH, {
             fit: 'contain',
             background: { r: 255, g: 255, b: 255 },
             ...HIGH_QUALITY_RESIZE,
           }).toBuffer(),
-          top: 0, left: 0,
+          top: printTop, left: printLeft,
         }])
+        .withMetadata({ density: printDensity })
         .jpeg(HIGH_QUALITY_JPEG)
         .toFile(printPath);
     }
@@ -1682,16 +1702,19 @@ app.whenReady().then(() => {
     box-sizing: border-box;
   }
   html, body {
-    width: 100%;
-    height: 100%;
+    width: ${isLandscape ? '6in' : '4in'};
+    height: ${isLandscape ? '4in' : '6in'};
     margin: 0;
     padding: 0;
     background: #ffffff;
     overflow: hidden;
   }
   img {
-    width: 100%;
-    height: 100%;
+    position: absolute;
+    top: 0;
+    left: ${isLandscape ? '2mm' : '2mm'};
+    width: calc(100% - ${isLandscape ? '4mm' : '4mm'});
+    height: calc(100% - 10mm);
     object-fit: contain;
     display: block;
   }
@@ -1738,6 +1761,8 @@ app.whenReady().then(() => {
             silent: isSilent,
             printBackground: true,
             margins: { marginType: 'none' },
+            preferCSSPageSize: true,
+            scaleFactor: 100,
             landscape: isLandscape,
             dpi: effectiveQuality === 'high' ? { horizontal: 600, vertical: 600 } : { horizontal: 300, vertical: 300 },
             pageSize: isLandscape

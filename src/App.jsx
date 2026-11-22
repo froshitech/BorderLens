@@ -4,7 +4,7 @@ import CameraView from './components/CameraView.jsx';
 import ReviewView from './components/ReviewView.jsx';
 import ResultView from './components/ResultView.jsx';
 import useBooth from './hooks/useBooth.js';
-import wordmarkLight from './assets/borderlens-wordmark-light-cropped.png';
+import wordmarkLight from './assets/borderlens-wordmark-light.png';
 import wordmarkDark from './assets/borderlens-wordmark-dark-cropped.png';
 import { isDarkTheme } from './utils/helpers.js';
 import {
