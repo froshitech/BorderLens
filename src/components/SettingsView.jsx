@@ -57,6 +57,7 @@ export default function SettingsView({
   themes = {}, activeTheme, customAccent, onThemeChange, onAccentChange,
   outputDir, digiCamControlPath, digiCamControlAvailable, printers = [], selectedPrinter,
   paperType = 'matte', onPaperTypeChange,
+  paperSize = '4x6', onPaperSizeChange,
   printQuality = 'high', onPrintQualityChange,
   stripLayout = 'dual', onStripLayoutChange,
   silentPrint = true, onSilentPrintChange,
@@ -449,7 +450,7 @@ export default function SettingsView({
               <section className="settings-section">
                 <h3>Strip Layout &amp; Copies Per Page</h3>
                 <p className="settings-hint">
-                  Choose how vertical 2×6 photo strips are arranged. Dual strips fill a 4×6 sheet (or an A4 sheet cut in half lengthwise). Single strip prints 1 copy aligned to the leading edge.
+                  Choose how vertical 2×6 photo strips are arranged. BorderLens uses the printer's currently loaded native paper size, so it works with 4R, A4, Letter, 5×7, and custom sheets. Single strip prints 1 copy aligned to the leading edge.
                 </p>
                 <div className="printer-options-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginTop: '0.65rem' }}>
                   <div
@@ -469,7 +470,7 @@ export default function SettingsView({
                       <span>2 Strips (Dual 2×6 on 4×6)</span>
                     </div>
                     <small style={{ display: 'block', marginTop: '0.35rem', color: 'var(--text-secondary)', fontSize: '0.75rem', lineHeight: '1.4' }}>
-                      Duplicates strips side-by-side. Fits 4×6 photo paper or 105mm half-cut A4 sheets perfectly.
+                      Duplicates strips side-by-side and scales to fit the printer's loaded paper automatically.
                     </small>
                   </div>
 
@@ -494,6 +495,29 @@ export default function SettingsView({
                     </small>
                   </div>
                 </div>
+              </section>
+
+              <section className="settings-section">
+                <h3>Output Paper Size</h3>
+                <p className="settings-hint">
+                  Select the exact physical page size loaded in the printer. This prevents the print from expanding to an incorrect default page.
+                </p>
+                <select
+                  className="settings-select"
+                  value={paperSize}
+                  onChange={event => onPaperSizeChange(event.target.value)}
+                  style={{ maxWidth: '420px', marginTop: '0.65rem' }}
+                >
+                  <option value="4x6">4 × 6 inches — 4R Portrait</option>
+                  <option value="6x4">6 × 4 inches — 4R Landscape</option>
+                  <option value="5x7">5 × 7 inches — Portrait</option>
+                  <option value="7x5">7 × 5 inches — Landscape</option>
+                  <option value="6x8">6 × 8 inches</option>
+                  <option value="8x10">8 × 10 inches</option>
+                  <option value="a6">A6 — 105 × 148 mm</option>
+                  <option value="a4">A4 — 210 × 297 mm</option>
+                  <option value="letter">Letter — 8.5 × 11 inches</option>
+                </select>
               </section>
 
               {/* ── Paper Media Selection ── */}
@@ -653,9 +677,9 @@ export default function SettingsView({
               </section>
 
               <section className="settings-section">
-                <h3>4R Borderless Output Specifications</h3>
+                <h3>Native Paper Output Specifications</h3>
                 <p className="settings-hint">
-                  BorderLens automatically formats vertical photo strips onto standard 4R (4×6 inch) photo paper:
+                  BorderLens lets the selected Windows printer decide the loaded paper size and tray. The selected strip layout is fitted to that native page:
                 </p>
                 <ul style={{ paddingLeft: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: '1.6' }}>
                   <li><strong>Multi-shot Vertical Strips:</strong> Automatically duplicated side-by-side (two 2×6 strips on one 4×6 print) for clean center cutting.</li>

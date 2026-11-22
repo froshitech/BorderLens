@@ -20,7 +20,7 @@ const PAGE_SIZE = 20;
 
 export default function GalleryView({ sessions, sessionsLoading, activeSession, formatDate, isPrinting,
   onSelect, onBack, onBackToTemplates, onLightbox, onPrint, paperType = 'matte', onPaperTypeChange, printQuality = 'high', onPrintQualityChange,
-  stripLayout = 'dual', onStripLayoutChange,
+  stripLayout = 'dual', onStripLayoutChange, paperSize = '4x6', onPaperSizeChange,
   onDelete, onDeleteMultiple, cloudQrMode = 'local' }) {
   const [cloudShareUrl, setCloudShareUrl] = useState(null);
   const [cloudLoading, setCloudLoading] = useState(false);
@@ -307,7 +307,7 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
 
                 <button
                   className={`action-btn action-btn--outline ${isPrinting ? 'action-btn--loading' : ''}`}
-                  onClick={() => onPrint(activeSession.stripFilename, printCopies, { paperType, printQuality, stripLayout })}
+                  onClick={() => onPrint(activeSession.stripFilename, printCopies, { paperType, paperSize, printQuality, stripLayout })}
                   disabled={isPrinting}
                   style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}
                 >
@@ -338,6 +338,8 @@ export default function GalleryView({ sessions, sessionsLoading, activeSession, 
                 onPrintQualityChange={onPrintQualityChange}
                 stripLayout={stripLayout}
                 onStripLayoutChange={onStripLayoutChange}
+                paperSize={paperSize}
+                onPaperSizeChange={onPaperSizeChange}
               />
             </div>
           </div>
