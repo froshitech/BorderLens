@@ -27,8 +27,6 @@ export default function PrintOptionsModal({
   onPrintQualityChange,
   stripLayout = 'dual',
   onStripLayoutChange,
-  paperSize = '4x6',
-  onPaperSizeChange,
 }) {
   if (!isOpen) return null;
 
@@ -53,27 +51,6 @@ export default function PrintOptionsModal({
           >
             ✕
           </button>
-        </div>
-
-        {/* Paper Size Selection */}
-        <div className="print-modal-section">
-          <span className="print-modal-label">Output Paper Size</span>
-          <select
-            className="settings-select"
-            value={paperSize}
-            onChange={event => onPaperSizeChange?.(event.target.value)}
-            style={{ width: '100%' }}
-          >
-            <option value="4x6">4 × 6 inches — 4R Portrait</option>
-            <option value="6x4">6 × 4 inches — 4R Landscape</option>
-            <option value="5x7">5 × 7 inches — Portrait</option>
-            <option value="7x5">7 × 5 inches — Landscape</option>
-            <option value="6x8">6 × 8 inches</option>
-            <option value="8x10">8 × 10 inches</option>
-            <option value="a6">A6 — 105 × 148 mm</option>
-            <option value="a4">A4 — 210 × 297 mm</option>
-            <option value="letter">Letter — 8.5 × 11 inches</option>
-          </select>
         </div>
 
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>

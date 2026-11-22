@@ -14,7 +14,7 @@ import PrintOptionsModal from './PrintOptionsModal.jsx';
 
 export default function ResultView({ resultPhotoUrl, resultShareUrl, resultLoopUrl, rawFrames, activeCss,
   template, resultFilename, isPrinting, onPrint, paperType = 'matte', onPaperTypeChange, printQuality = 'high', onPrintQualityChange,
-  stripLayout = 'dual', onStripLayoutChange, paperSize = '4x6', onPaperSizeChange, onNewSession, onLightbox, cloudQrMode = 'local' }) {
+  stripLayout = 'dual', onStripLayoutChange, onNewSession, onLightbox, cloudQrMode = 'local' }) {
   const [cloudShareUrl, setCloudShareUrl] = useState(null);
   const [cloudLoading, setCloudLoading] = useState(false);
   const [cloudError, setCloudError] = useState(null);
@@ -125,7 +125,7 @@ export default function ResultView({ resultPhotoUrl, resultShareUrl, resultLoopU
 
           <button
             className={`action-btn action-btn--outline ${isPrinting ? 'action-btn--loading' : ''}`}
-            onClick={() => onPrint(resultFilename, printCopies, { paperType, paperSize, printQuality, stripLayout })}
+            onClick={() => onPrint(resultFilename, printCopies, { paperType, printQuality, stripLayout })}
             disabled={isPrinting}
             style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}
           >
@@ -158,8 +158,6 @@ export default function ResultView({ resultPhotoUrl, resultShareUrl, resultLoopU
       onPrintQualityChange={onPrintQualityChange}
       stripLayout={stripLayout}
       onStripLayoutChange={onStripLayoutChange}
-      paperSize={paperSize}
-      onPaperSizeChange={onPaperSizeChange}
     />
     </>
   );

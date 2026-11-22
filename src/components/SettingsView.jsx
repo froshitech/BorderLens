@@ -57,7 +57,6 @@ export default function SettingsView({
   themes = {}, activeTheme, customAccent, onThemeChange, onAccentChange,
   outputDir, digiCamControlPath, digiCamControlAvailable, printers = [], selectedPrinter,
   paperType = 'matte', onPaperTypeChange,
-  paperSize = '4x6', onPaperSizeChange,
   printQuality = 'high', onPrintQualityChange,
   stripLayout = 'dual', onStripLayoutChange,
   silentPrint = true, onSilentPrintChange,
@@ -497,29 +496,6 @@ export default function SettingsView({
                 </div>
               </section>
 
-              <section className="settings-section">
-                <h3>Output Paper Size</h3>
-                <p className="settings-hint">
-                  Select the exact physical page size loaded in the printer. This prevents the print from expanding to an incorrect default page.
-                </p>
-                <select
-                  className="settings-select"
-                  value={paperSize}
-                  onChange={event => onPaperSizeChange(event.target.value)}
-                  style={{ maxWidth: '420px', marginTop: '0.65rem' }}
-                >
-                  <option value="4x6">4 × 6 inches — 4R Portrait</option>
-                  <option value="6x4">6 × 4 inches — 4R Landscape</option>
-                  <option value="5x7">5 × 7 inches — Portrait</option>
-                  <option value="7x5">7 × 5 inches — Landscape</option>
-                  <option value="6x8">6 × 8 inches</option>
-                  <option value="8x10">8 × 10 inches</option>
-                  <option value="a6">A6 — 105 × 148 mm</option>
-                  <option value="a4">A4 — 210 × 297 mm</option>
-                  <option value="letter">Letter — 8.5 × 11 inches</option>
-                </select>
-              </section>
-
               {/* ── Paper Media Selection ── */}
               <section className="settings-section">
                 <h3>Photo Paper Media Type</h3>
@@ -679,12 +655,12 @@ export default function SettingsView({
               <section className="settings-section">
                 <h3>Native Paper Output Specifications</h3>
                 <p className="settings-hint">
-                  BorderLens lets the selected Windows printer decide the loaded paper size and tray. The selected strip layout is fitted to that native page:
+                  BorderLens follows the same workflow as DSLR Booth: send one full 4×6 print job and let the Windows printer driver control paper, borderless output, and cutting:
                 </p>
                 <ul style={{ paddingLeft: '1.25rem', color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: '1.6' }}>
                   <li><strong>Multi-shot Vertical Strips:</strong> Automatically duplicated side-by-side (two 2×6 strips on one 4×6 print) for clean center cutting.</li>
-                  <li><strong>Single-shot &amp; Postcards:</strong> Centered with zero offset margins for borderless photo prints.</li>
-                  <li><strong>Paper Compensation:</strong> Matte photo paper automatically receives edge unsharp masking to prevent ink bleed and softness.</li>
+                  <li><strong>DNP / 2×6 Driver Setup:</strong> In Windows Printing Preferences, select 4×6/4R paper and enable 2×6 or 2-inch cut mode for dual strips.</li>
+                  <li><strong>Borderless Profile:</strong> Enable borderless 4×6 output in the printer driver and keep BorderLens on the driver-loaded paper profile.</li>
                 </ul>
               </section>
             </>

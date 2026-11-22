@@ -1140,7 +1140,6 @@ app.whenReady().then(() => {
     return {
       printerName: config.printerName || null,
       paperType: config.paperType || 'matte',
-      paperSize: config.paperSize || '4x6',
       printQuality: config.printQuality || 'high',
       stripLayout: config.stripLayout || 'dual',
       silentPrint: config.silentPrint !== false,
@@ -1161,14 +1160,13 @@ app.whenReady().then(() => {
     return config.printerName;
   });
 
-  ipcMain.handle('save-printer-config', (event, { printerName, paperType, paperSize, printQuality, stripLayout, silentPrint } = {}) => {
+  ipcMain.handle('save-printer-config', (event, { printerName, paperType, printQuality, stripLayout, silentPrint } = {}) => {
     let config = {};
     try { config = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')); } catch {}
     config.outputDir = OUTPUT_DIR;
     config.digiCamControlPath = DIGI_CAM_DIR;
     if (printerName !== undefined) config.printerName = printerName || null;
     if (paperType) config.paperType = paperType;
-    if (paperSize) config.paperSize = paperSize;
     if (printQuality) config.printQuality = printQuality;
     if (stripLayout) config.stripLayout = stripLayout;
     if (silentPrint !== undefined) config.silentPrint = Boolean(silentPrint);
@@ -1177,7 +1175,6 @@ app.whenReady().then(() => {
     return {
       printerName: config.printerName || null,
       paperType: config.paperType || 'matte',
-      paperSize: config.paperSize || '4x6',
       printQuality: config.printQuality || 'high',
       stripLayout: config.stripLayout || 'dual',
       silentPrint: config.silentPrint !== false,
@@ -1567,7 +1564,6 @@ app.whenReady().then(() => {
     copies = 1,
     printerName = null,
     paperType = null,
-    paperSize = null,
     printQuality = null,
     stripLayout = null,
     silent = null,
@@ -1579,7 +1575,6 @@ app.whenReady().then(() => {
 
     printerName = printerName || config.printerName || null;
     const effectivePaper = paperType || config.paperType || 'matte';
-    const effectivePaperSize = paperSize || config.paperSize || '4x6';
     const effectiveQuality = printQuality || config.printQuality || 'high';
     const effectiveLayout = stripLayout || config.stripLayout || 'dual';
     const isSilent = silent !== null ? Boolean(silent) : (config.silentPrint !== false);
@@ -1592,24 +1587,12 @@ app.whenReady().then(() => {
     const printFile   = `print_${ts}.jpg`;
     const printPath   = path.join(OUTPUT_DIR, printFile);
     const printDensity = effectiveQuality === 'high' ? 600 : 300;
-    const pageSpecs = {
-      '4x6': { widthIn: 4, heightIn: 6, widthMicrons: 101600, heightMicrons: 152400, landscape: false },
-      '6x4': { widthIn: 6, heightIn: 4, widthMicrons: 152400, heightMicrons: 101600, landscape: true },
-      '5x7': { widthIn: 5, heightIn: 7, widthMicrons: 127000, heightMicrons: 177800, landscape: false },
-      '7x5': { widthIn: 7, heightIn: 5, widthMicrons: 177800, heightMicrons: 127000, landscape: true },
-      '6x8': { widthIn: 6, heightIn: 8, widthMicrons: 152400, heightMicrons: 203200, landscape: false },
-      '8x10': { widthIn: 8, heightIn: 10, widthMicrons: 203200, heightMicrons: 254000, landscape: false },
-      a6: { widthIn: 105 / 25.4, heightIn: 148 / 25.4, widthMicrons: 105000, heightMicrons: 148000, landscape: false },
-      a4: { widthIn: 210 / 25.4, heightIn: 297 / 25.4, widthMicrons: 210000, heightMicrons: 297000, landscape: false },
-      letter: { widthIn: 8.5, heightIn: 11, widthMicrons: 215900, heightMicrons: 279400, landscape: false },
-    };
-    const pageSpec = pageSpecs[effectivePaperSize] || pageSpecs['4x6'];
-    const canvasW = Math.round(pageSpec.widthIn * printDensity);
-    const canvasH = Math.round(pageSpec.heightIn * printDensity);
-    const isLandscape = pageSpec.landscape;
     const meta = await sharp(stripPath).metadata();
     const sourceIsLandscape = meta.width > meta.height;
     const isStrip = !sourceIsLandscape && (meta.width / meta.height <= 0.55);
+    const canvasW = sourceIsLandscape ? 1800 : 1200;
+    const canvasH = sourceIsLandscape ? 1200 : 1800;
+    const isLandscape = sourceIsLandscape;
 
     // Matte Paper Optimization:
     // Matte photo paper absorbs ink and scatters light differently than glossy paper.
@@ -1694,7 +1677,6 @@ app.whenReady().then(() => {
 <meta charset="utf-8">
 <style>
   @page {
-    size: ${pageSpec.widthIn}in ${pageSpec.heightIn}in;
     margin: 0;
   }
   * {
@@ -1703,8 +1685,8 @@ app.whenReady().then(() => {
     box-sizing: border-box;
   }
   html, body {
-    width: ${pageSpec.widthIn}in;
-    height: ${pageSpec.heightIn}in;
+    width: 100%;
+    height: 100%;
     margin: 0;
     padding: 0;
     background: #ffffff;
@@ -1716,7 +1698,7 @@ app.whenReady().then(() => {
     left: 0;
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: fill;
     display: block;
   }
 </style>
@@ -1762,14 +1744,9 @@ app.whenReady().then(() => {
             silent: isSilent,
             printBackground: true,
             margins: { marginType: 'none' },
-            preferCSSPageSize: true,
             scaleFactor: 100,
             landscape: isLandscape,
             dpi: effectiveQuality === 'high' ? { horizontal: 600, vertical: 600 } : { horizontal: 300, vertical: 300 },
-            pageSize: {
-              width: pageSpec.widthMicrons,
-              height: pageSpec.heightMicrons,
-            },
             color: true,
           };
           if (printerName) printOptions.deviceName = printerName;
@@ -1785,7 +1762,7 @@ app.whenReady().then(() => {
         doPrint();
       });
 
-      return { printFile, paperType: effectivePaper, paperSize: effectivePaperSize, printQuality: effectiveQuality, stripLayout: effectiveLayout };
+      return { printFile, paperType: effectivePaper, printQuality: effectiveQuality, stripLayout: effectiveLayout };
     } finally {
       if (!printWin.isDestroyed()) {
         printWin.destroy();
