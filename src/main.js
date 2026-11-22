@@ -1587,20 +1587,8 @@ app.whenReady().then(() => {
     const printFile   = `print_${ts}.jpg`;
     const printPath   = path.join(OUTPUT_DIR, printFile);
     const printDensity = effectiveQuality === 'high' ? 600 : 300;
-    // Keep a physical safe margin inside the 4R canvas. Many photo printers
-    // bleed or clip a few pixels even when Chromium reports borderless output.
-    // This prevents template borders and the top/bottom of each strip from
-    // being cut off without changing the source strip or live preview.
-    // Reserve a small printer-safe border. The vertical space is intentionally
-    // asymmetric: printers that clip on one edge do so primarily at the
-    // mechanical bottom, so content is kept flush with the top and gains extra
-    // bottom clearance.
-    const portraitSafeW = 1152;
-    const portraitSafeH = 1728;
-    const landscapeSafeW = 1728;
-    const landscapeSafeH = 1152;
-    const printLeft = 24;
-    const printTop = 0;
+    // Generate a true, full-size 4R canvas. Printer-safe border/padding must
+    // not be baked into the image because it visibly shrinks the keepsake.
 
     // 4R canvas: 1200×1800 px (portrait) or 1800×1200 (landscape for single-shot)
     const meta = await sharp(stripPath).metadata();
@@ -1625,12 +1613,12 @@ app.whenReady().then(() => {
         create: { width: 1800, height: 1200, channels: 3, background: { r: 255, g: 255, b: 255 } }
       })
         .composite([{
-          input: await sharp(processedBuffer).resize(landscapeSafeW, landscapeSafeH, {
+          input: await sharp(processedBuffer).resize(1800, 1200, {
             fit: 'contain',
             background: { r: 255, g: 255, b: 255 },
             ...HIGH_QUALITY_RESIZE,
           }).toBuffer(),
-          top: 0, left: 36,
+          top: 0, left: 0,
         }])
         .withMetadata({ density: printDensity })
         .jpeg(HIGH_QUALITY_JPEG)
@@ -1640,7 +1628,7 @@ app.whenReady().then(() => {
       // 'dual': duplicate side-by-side on 1200×1800 4R canvas with a safe inset
       // 'single': single strip placed at left edge on 1200×1800 canvas
       const canvasW = 1200, canvasH = 1800;
-      const halfW = 576, safeH = 1728;
+      const halfW = 600, safeH = 1800;
       const stripBuf = await sharp(processedBuffer)
         .resize(halfW, safeH, {
           fit: 'contain',
@@ -1650,10 +1638,9 @@ app.whenReady().then(() => {
         .toBuffer();
 
       const composites = effectiveLayout === 'single'
-        ? [{ input: stripBuf, top: 0, left: 24 }]
+        ? [{ input: stripBuf, top: 0, left: 0 }]
         : [
-            // No manual gap: the two centered copies meet at the sheet seam.
-            { input: stripBuf, top: 0, left: 24 },
+            { input: stripBuf, top: 0, left: 0 },
             { input: stripBuf, top: 0, left: 600 },
           ];
 
@@ -1670,12 +1657,12 @@ app.whenReady().then(() => {
         create: { width: 1200, height: 1800, channels: 3, background: { r: 255, g: 255, b: 255 } }
       })
         .composite([{
-          input: await sharp(processedBuffer).resize(portraitSafeW, portraitSafeH, {
+          input: await sharp(processedBuffer).resize(1200, 1800, {
             fit: 'contain',
             background: { r: 255, g: 255, b: 255 },
             ...HIGH_QUALITY_RESIZE,
           }).toBuffer(),
-          top: printTop, left: printLeft,
+          top: 0, left: 0,
         }])
         .withMetadata({ density: printDensity })
         .jpeg(HIGH_QUALITY_JPEG)
@@ -1712,10 +1699,10 @@ app.whenReady().then(() => {
   img {
     position: absolute;
     top: 0;
-    left: ${isLandscape ? '2mm' : '2mm'};
-    width: calc(100% - ${isLandscape ? '4mm' : '4mm'});
-    height: calc(100% - 10mm);
-    object-fit: contain;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
     display: block;
   }
 </style>
@@ -1760,7 +1747,13 @@ app.whenReady().then(() => {
           const printOptions = {
             silent: isSilent,
             printBackground: true,
-            margins: { marginType: 'none' },
+            margins: {
+              marginType: 'custom',
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+            },
             preferCSSPageSize: true,
             scaleFactor: 100,
             landscape: isLandscape,
