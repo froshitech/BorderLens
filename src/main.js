@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('node:path');
 const dotenv = require('dotenv');
-const { exec } = require('child_process');
+const { exec, execFile } = require('child_process');
 const http = require('http');
 const express = require('express');
 const os = require('os');
@@ -1558,6 +1558,24 @@ app.whenReady().then(() => {
     return filePaths[0];
   });
 
+  function printJpegWithMspaint(jpegPath, printerName) {
+    const mspaintPath = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'mspaint.exe');
+    return new Promise((resolve, reject) => {
+      const args = printerName
+        ? ['/pt', jpegPath, printerName]
+        : ['/pt', jpegPath];
+      execFile(mspaintPath, args, {
+        windowsHide: true,
+        timeout: 60000,
+      }, (error, stdout, stderr) => {
+        if (error) {
+          return reject(new Error(stderr?.trim() || error.message));
+        }
+        resolve();
+      });
+    });
+  }
+
   // ── print-strip ─────────────────────────────────────────────────────────────
   ipcMain.handle('print-strip', async (event, {
     stripFilename,
@@ -1578,6 +1596,17 @@ app.whenReady().then(() => {
     const effectiveQuality = printQuality || config.printQuality || 'high';
     const effectiveLayout = stripLayout || config.stripLayout || 'dual';
     const isSilent = silent !== null ? Boolean(silent) : (config.silentPrint !== false);
+
+    if (printerName) {
+      const printers = await mainWindow.webContents.getPrintersAsync();
+      const exactPrinter = printers.find(printer =>
+        printer.name === printerName || printer.displayName === printerName
+      );
+      if (!exactPrinter) {
+        throw new Error(`Selected printer is unavailable: ${printerName}`);
+      }
+      printerName = exactPrinter.name || printerName;
+    }
 
     const safeName   = path.basename(stripFilename);
     const stripPath  = path.join(OUTPUT_DIR, safeName);
@@ -1745,14 +1774,35 @@ app.whenReady().then(() => {
             printBackground: true,
             margins: { marginType: 'none' },
             scaleFactor: 100,
-            landscape: isLandscape,
-            dpi: effectiveQuality === 'high' ? { horizontal: 600, vertical: 600 } : { horizontal: 300, vertical: 300 },
             color: true,
           };
           if (printerName) printOptions.deviceName = printerName;
+          console.log('[print] Spooling native page job', {
+            printerName: printerName || 'Windows default',
+            silent: isSilent,
+            copies,
+            layout: effectiveLayout,
+            source: isLandscape ? 'landscape' : 'portrait',
+            printFile,
+          });
           printWin.webContents.print(printOptions, (success, errorType) => {
             if (!success) {
-              return reject(new Error('Print failed: ' + errorType));
+              const reason = errorType || 'Printer rejected the print job';
+              console.error('[print] Print job failed', { printerName, reason, printFile });
+              if (!printerName) {
+                return reject(new Error(`Print failed: ${reason}`));
+              }
+              console.warn('[print] Falling back to Windows image printing');
+              printJpegWithMspaint(printPath, printerName)
+                .then(() => {
+                  printed++;
+                  if (printed < copies) return doPrint();
+                  resolve();
+                })
+                .catch(fallbackError => {
+                  reject(new Error(`Print failed on ${printerName}: ${reason}. Windows image fallback failed: ${fallbackError.message}`));
+                });
+              return;
             }
             printed++;
             if (printed < copies) return doPrint();
